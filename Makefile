@@ -65,7 +65,7 @@ deb: clean
 	@install -m 0644 etc/wb-climate.conf $(BUILD)/etc/
 	@install -m 0644 usr/share/wb-mqtt-confed/schemas/wb-climate.schema.json \
 		$(BUILD)/usr/share/wb-mqtt-confed/schemas/
-	@install -m 0644 README.md PROMPT.md etc/wb-climate.conf.example $(BUILD)/usr/share/$(PKG)/
+	@install -m 0644 README.md PROMPT.md ROADMAP.md etc/wb-climate.conf.example $(BUILD)/usr/share/$(PKG)/
 	@echo "$(VERSION)" > $(BUILD)/usr/share/$(PKG)/VERSION
 	@printf 'Package: %s\n' "$(PKG)"                        >  $(BUILD)/DEBIAN/control
 	@printf 'Version: %s\n' "$(VERSION)"                    >> $(BUILD)/DEBIAN/control
