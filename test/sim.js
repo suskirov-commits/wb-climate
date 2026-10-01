@@ -13,7 +13,10 @@
  *     получается реальное запаздывание 1–1,5 мин и полное открытие ~3–4 мин;
  *   - теплообменник конвектора с собственной теплоёмкостью воды и металла;
  *   - отдача: естественная конвекция + вентилятор (расход воздуха по ступени);
- *   - датчик в помещении: инерция корпуса 2 мин, шум, дискретность 0,01.
+ *   - датчик в помещении: инерция корпуса 2 мин, шум, дискретность 0,01;
+ *   - тёплый пол: стяжка 60 мм на 20 м² (2,4 МДж/К), подача 35 °C от
+ *     смесительного узла, теплоотдача пола ~10,8 Вт/(м²·К), своя
+ *     термоголовка, датчик в стяжке с инерцией 5 мин.
  *
  * Запуск: node test/sim.js                  — сравнение вариантов
  *         node test/sim.js --trace [--ti=0]  — трасса раз в 5 мин
@@ -37,11 +40,17 @@ const ROOM = {
   UAfan: 45, // Вт/К на полной скорости
   Cw: 8e3, // Дж/К — вода и металл теплообменника
   mc: 200, // Вт/К — расход при открытом клапане
-  airflow: [0, 0.45, 0.72, 1.0] // доля расхода воздуха по ступеням
+  airflow: [0, 0.45, 0.72, 1.0], // доля расхода воздуха по ступеням
+  // Тёплый пол 20 м²: при открытых петлях стяжка ~27 °C, ~1150 Вт —
+  // при −20 °C пол один держит помещение на ~77 % мощности
+  Cf: 2.4e6, // Дж/К — стяжка
+  UAwf: 150, // Вт/К — вода -> стяжка при открытых петлях
+  hAf: 216, // Вт/К — пол -> воздух
+  TsupF: 35 // °C — подача в пол
 };
 
 /* ---------------- модель ---------------- */
-function makePlant(T0, Tout, opts) {
+function makePlant(T0, Tout, opts, hasFloor) {
   const p = Object.assign({}, ROOM, opts || {});
   // Старт из установившегося состояния: помещение давно держит T0
   const Tm0 = (p.Ham * T0 + p.UAenv * Tout) / (p.Ham + p.UAenv);
@@ -51,22 +60,34 @@ function makePlant(T0, Tout, opts) {
     Tm: Tm0,
     Tw: T0,
     wax: 0, // 0..1 — восковой элемент термоголовки
+    waxF: 0, // термоголовка пола
+    Tf: T0 + 2, // стяжка
+    Tfs: T0 + 2, // датчик пола
+    Qf: 0,
     Ts: T0, // показание датчика (с инерцией)
     Tout: Tout,
     gain: 0, // внутренние теплопоступления, Вт
     windowUA: 0,
     Q: 0,
-    step(dt, valveOn, fanFrac) {
+    step(dt, valveOn, fanFrac, floorOn) {
       // термоголовка: открывается ~3 мин, закрывается ~4–5 мин
       const tau = valveOn ? 90 : 150;
       this.wax += ((valveOn ? 1 : 0) - this.wax) * (dt / tau);
+      this.waxF += ((floorOn ? 1 : 0) - this.waxF) * (dt / (floorOn ? 90 : 150));
+      const vf = Math.min(1, Math.max(0, (this.waxF - 0.3) / 0.6));
+      // Стяжка — отдельный узел только при тёплом поле; без него масса
+      // пола уже учтена в ограждениях (Cm)
+      const Qf = hasFloor ? p.hAf * (this.Tf - this.Ta) : 0;
+      this.Qf = Qf;
+      this.Tf += ((p.UAwf * vf * (p.TsupF - this.Tf) - Qf) / p.Cf) * dt;
+      this.Tfs += ((this.Tf - this.Tfs) * dt) / 300;
       const v = Math.min(1, Math.max(0, (this.wax - 0.3) / 0.6));
       const UA = p.UAnat + (p.UAfan - p.UAnat) * fanFrac;
       const Q = UA * Math.max(0, this.Tw - this.Ta);
       this.Q = Q;
       this.Tw += ((p.mc * v * (p.Tsup - this.Tw) - Q) / p.Cw) * dt;
       const qAm = p.Ham * (this.Ta - this.Tm);
-      this.Ta += ((Q + this.gain - qAm - (p.UAinf + this.windowUA) * (this.Ta - this.Tout)) / p.Ca) * dt;
+      this.Ta += ((Q + Qf + this.gain - qAm - (p.UAinf + this.windowUA) * (this.Ta - this.Tout)) / p.Ca) * dt;
       this.Tm += ((qAm - p.UAenv * (this.Tm - this.Tout)) / p.Cm) * dt;
       this.Ts += ((this.Ta - this.Ts) * dt) / 120;
     }
@@ -87,6 +108,8 @@ const TEMP = 'msw/Temperature',
   S3 = 'mr6c/K4',
   AO = 'mao4/Channel 1',
   MB = 'conv_mb/fan_speed',
+  FVALVE = 'mr6c/K5',
+  FTEMP = 'w1/floor',
   WIN = 'win/Input 1';
 
 function zoneConfig(v) {
@@ -98,6 +121,28 @@ function zoneConfig(v) {
       : v.fan === 'modbus'
       ? { type: 'modbus', out: MB, steps: 0, minChange: v.minChange, start: v.fanStart, min: 20, hyst: v.fanHyst, delay: v.fanDelay }
       : { type: 'relays', speeds: [S1, S2, S3], start: v.fanStart, hyst: v.fanHyst, minStepTime: v.fanStep, delay: v.fanDelay };
+  const conv = {
+    type: 'convector',
+    id: 'conv',
+    valve: { topics: [VALVE], mode: v.valveMode, minOn: v.minOn, minOff: v.minOff, cycle: v.cycle, openTime: 180 },
+    fan
+  };
+  const floor = {
+    type: 'floor',
+    id: 'floor',
+    valve: { topics: [FVALVE], cycle: v.fcycle, minOn: v.fminOn, minOff: v.fminOn },
+    floorSensors: v.fnosensor ? [] : [FTEMP],
+    minFloor: v.minFloor,
+    floorHyst: v.fhyst
+  };
+  if (v.cw) {
+    conv.demandFrom = v.cw[0];
+    conv.demandTo = v.cw[1];
+  }
+  if (v.fw) {
+    floor.demandFrom = v.fw[0];
+    floor.demandTo = v.fw[1];
+  }
   return {
     id: 'zone',
     title: 'Комната',
@@ -105,14 +150,7 @@ function zoneConfig(v) {
     sensors: { temperature: [TEMP], tau: v.tau },
     window: v.window ? { topics: [WIN], delay: 30 } : {},
     control: { period: 10, band: v.band, ti: v.ti },
-    devices: [
-      {
-        type: 'convector',
-        id: 'conv',
-        valve: { topics: [VALVE], mode: v.valveMode, minOn: v.minOn, minOff: v.minOff, cycle: v.cycle, openTime: 180 },
-        fan
-      }
-    ]
+    devices: v.layout === 'floor' ? [floor] : v.layout === 'mixed' ? [floor, conv] : [conv]
   };
 }
 
@@ -133,9 +171,10 @@ const SC = { gain: 180, window: 300, night: 420, morning: 660, end: 900 };
 function run(v, trace) {
   const env = createEnv();
   const rnd = rng(12345);
-  const plant = makePlant(22, v.tout, v.plant);
+  const plant = makePlant(22, v.tout, v.plant, v.layout !== 'conv');
   env.control(TEMP, 22);
-  for (const t of [VALVE, S1, S2, S3]) env.control(t, false);
+  for (const t of [VALVE, S1, S2, S3, FVALVE]) env.control(t, false);
+  env.control(FTEMP, 24);
   env.control(AO, 0);
   env.control(MB, 0);
   env.control(WIN, false);
@@ -153,8 +192,13 @@ function run(v, trace) {
     windowBack: null,
     nightDip: Infinity,
     morning: null,
-    overshoot: 0
+    overshoot: 0,
+    floorSwitches: 0,
+    eFloor: 0,
+    eConv: 0,
+    floorMax: 0
   };
+  let lastFloor = false;
   let lastValve = false,
     lastFan = 0,
     mark = 0;
@@ -170,6 +214,7 @@ function run(v, trace) {
     if (s === SC.morning * 60) env.set('zone/setpoint', 22);
 
     const valveOn = env.get(VALVE) === true;
+    const floorOn = env.get(FVALVE) === true;
     let fanFrac = 0;
     let lvl = 0;
     if (v.fan === 'analog') fanFrac = (env.get(AO) || 0) / 10000;
@@ -179,17 +224,23 @@ function run(v, trace) {
       fanFrac = ROOM.airflow[lvl];
     }
     if (counted) {
-      if (v.fan === 'relays') {
+      if (v.fan === 'relays' && v.layout !== 'floor') {
         m.fanTime[lvl]++;
         if (lvl !== lastFan) m.fanChanges++;
       }
       if (valveOn !== lastValve) m.switches++;
+      if (floorOn !== lastFloor) m.floorSwitches++;
+      m.eFloor += plant.Qf / 3600;
+      m.eConv += plant.Q / 3600;
+      m.floorMax = Math.max(m.floorMax, plant.Tf);
     }
     lastFan = lvl;
     lastValve = valveOn;
+    lastFloor = floorOn;
 
-    plant.step(1, valveOn, fanFrac);
+    plant.step(1, valveOn, fanFrac, floorOn);
     if (s % 5 === 0) env.set(TEMP, Math.round((plant.Ts + (rnd() - 0.5) * 0.06) * 100) / 100);
+    if (s % 10 === 0) env.set(FTEMP, Math.round(plant.Tfs * 100) / 100);
     env.advance(1000);
 
     const Ta = plant.Ta;
@@ -216,6 +267,9 @@ function run(v, trace) {
           'dem ' + String(Math.round(z.demand)).padStart(3),
           'I ' + z.integral.toFixed(1),
           'valve ' + (valveOn ? 1 : 0),
+          'Tf ' + plant.Tf.toFixed(1),
+          'Qf ' + String(Math.round(plant.Qf)).padStart(4),
+          'floor ' + (floorOn ? 1 : 0),
           'fan ' + (v.fan === 'analog' ? Math.round(fanFrac * 100) + '%' : lvl),
           z.state
         ].join('  ')
@@ -226,6 +280,8 @@ function run(v, trace) {
   m.mean = se.reduce((a, b) => a + b, 0) / se.length;
   m.dev = Math.max(...se.map((x) => Math.abs(x - m.mean)));
   m.switchesPerH = (m.switches * 60) / SC.end;
+  m.floorPerH = (m.floorSwitches * 60) / SC.end;
+  m.floorShare = m.eFloor + m.eConv > 0 ? (100 * m.eFloor) / (m.eFloor + m.eConv) : 0;
   m.fanPerH = (m.fanChanges * 60) / SC.end;
   // записи в регистр плавного вентилятора (ресурс памяти платы)
   if (v.fan === 'modbus' || v.fan === 'analog') m.fanPerH = (env.countWrites(v.fan === 'modbus' ? MB : AO, mark) * 60) / SC.end;
@@ -244,6 +300,11 @@ const BASE = {
   fanStep: 60,
   fanDelay: 180,
   valveMode: 'onoff',
+  layout: 'conv', // conv | floor | mixed
+  fcycle: 1200,
+  fminOn: 180,
+  minFloor: 0,
+  fhyst: 0.5,
   minOn: 120,
   minOff: 120,
   cycle: 900,
@@ -297,11 +358,19 @@ const VARIANTS = [
   ['  … ШИМ', Object.assign({ valveMode: 'pwm' }, PASSIVE)],
   ['  … onoff, чистый П', Object.assign({ ti: 0 }, PASSIVE)],
   ['  … onoff, +8 °C', Object.assign({ tout: 8 }, PASSIVE)],
-  ['  … ШИМ, +8 °C', Object.assign({ tout: 8, valveMode: 'pwm' }, PASSIVE)]
+  ['  … ШИМ, +8 °C', Object.assign({ tout: 8, valveMode: 'pwm' }, PASSIVE)],
+  ['только пол, каскад по датчику', { layout: 'floor' }],
+  ['  … гистерезис пола 1 К', { layout: 'floor', fhyst: 1 }],
+  ['  … без датчика пола (ШИМ 20 мин)', { layout: 'floor', fnosensor: true }],
+  ['  … minFloor 25 (комфортный пол)', { layout: 'floor', minFloor: 25 }],
+  ['  … +8 °C', { layout: 'floor', tout: 8 }],
+  ['пол + конвектор, авто 0–70/50–100', { layout: 'mixed' }],
+  ['  … без деления 0–100/0–100', { layout: 'mixed', fw: [0, 100], cw: [0, 100] }],
+  ['  … +8 °C', { layout: 'mixed', tout: 8 }]
 ];
 
 const f = (x, d) => (x === null || !isFinite(x) ? '    — ' : x.toFixed(d === undefined ? 2 : d).padStart(6));
-console.log('\nвариант                         ст.ср ст.разм +400Вт  окно  возвр   ночь   утро заброс клап/ч вент/ч  ск 0/1/2/3 %');
+console.log('\nвариант                         ст.ср ст.разм +400Вт  окно  возвр   ночь   утро заброс клап/ч вент/ч  ск 0/1/2/3 %  пол: доля/перекл.');
 for (const [name, opt] of VARIANTS) {
   const v = Object.assign({}, BASE, opt);
   const m = run(v);
@@ -321,7 +390,8 @@ for (const [name, opt] of VARIANTS) {
         f(m.fanPerH, 1)
       ].join(' ') +
       '  ' +
-      (tot ? m.fanTime.map((x) => Math.round((100 * x) / tot)).join('/') : '')
+      (tot ? m.fanTime.map((x) => Math.round((100 * x) / tot)).join('/') : '').padEnd(13) +
+      (v.layout !== 'conv' ? Math.round(m.floorShare) + ' % / ' + m.floorPerH.toFixed(1) : '')
   );
 }
 console.log(
@@ -333,6 +403,7 @@ console.log(
     'ночь — мин. ошибка при уставке 20, К; утро — мин до 21,7 °C после возврата уставки 22;',
     'заброс — макс превышение 22 °C после утреннего выхода, К;',
     'клап/ч, вент/ч — переключений термоголовки и ступеней вентилятора в час;',
+    'пол: доля — доля тепла от пола, %; перекл. — переключений петель в час;',
     '  для плавных (0-10 В, Modbus) вент/ч — записей в выход в час.'
   ].join('\n')
 );

@@ -7,6 +7,7 @@
  *   /etc/wb-rules-modules/wbclim-valve.js
  *   /etc/wb-rules-modules/wbclim-fan.js
  *   /etc/wb-rules-modules/wbclim-convector.js
+ *   /etc/wb-rules-modules/wbclim-floor.js
  *   /etc/wb-rules-modules/wbclim-zone.js
  *   /etc/wb-rules/wb-climate.js            <- этот файл
  *   /etc/wb-climate.conf                   <- конфигурация

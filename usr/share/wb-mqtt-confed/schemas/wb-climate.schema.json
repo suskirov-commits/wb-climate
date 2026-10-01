@@ -457,14 +457,14 @@
         "minChange": {
           "type": "number",
           "title": "fanMinChangeTitle",
-          "description": "fanMinChangeDescription",
           "minimum": 0,
           "maximum": 50,
           "default": 5,
           "propertyOrder": 6,
           "options": {
             "grid_columns": 6
-          }
+          },
+          "description": "fanMinChangeDescription"
         },
         "enable": {
           "type": "string",
@@ -473,7 +473,7 @@
           "minLength": 0,
           "_format": "wb-autocomplete",
           "default": "",
-          "propertyOrder": 7,
+          "propertyOrder": 15,
           "options": {
             "patternmessage": "errMqttTopic",
             "inputAttributes": {
@@ -492,7 +492,7 @@
           "minimum": 0,
           "maximum": 95,
           "default": 20,
-          "propertyOrder": 8,
+          "propertyOrder": 20,
           "options": {
             "grid_columns": 4
           },
@@ -504,7 +504,7 @@
           "minimum": 0,
           "maximum": 100,
           "default": 20,
-          "propertyOrder": 9,
+          "propertyOrder": 25,
           "options": {
             "grid_columns": 4
           },
@@ -516,7 +516,7 @@
           "minimum": 10,
           "maximum": 100,
           "default": 100,
-          "propertyOrder": 10,
+          "propertyOrder": 26,
           "options": {
             "grid_columns": 4
           }
@@ -527,7 +527,7 @@
           "minimum": 0,
           "maximum": 30,
           "default": 10,
-          "propertyOrder": 11,
+          "propertyOrder": 21,
           "options": {
             "grid_columns": 4
           },
@@ -539,7 +539,7 @@
           "minimum": 0,
           "maximum": 600,
           "default": 60,
-          "propertyOrder": 12,
+          "propertyOrder": 22,
           "options": {
             "grid_columns": 4
           }
@@ -550,7 +550,7 @@
           "minimum": 0,
           "maximum": 900,
           "default": 180,
-          "propertyOrder": 13,
+          "propertyOrder": 23,
           "options": {
             "grid_columns": 4
           },
@@ -562,7 +562,7 @@
           "minimum": 15,
           "maximum": 60,
           "default": 30,
-          "propertyOrder": 14,
+          "propertyOrder": 24,
           "options": {
             "grid_columns": 4
           },
@@ -596,7 +596,7 @@
         },
         "id": {
           "type": "string",
-          "title": "convIdTitle",
+          "title": "devIdTitle",
           "description": "convIdDescription",
           "pattern": "^[a-z0-9_]+$",
           "minLength": 1,
@@ -610,7 +610,7 @@
         },
         "title": {
           "type": "string",
-          "title": "convNameTitle",
+          "title": "devNameTitle",
           "default": "Конвектор 1",
           "propertyOrder": 2,
           "options": {
@@ -621,7 +621,7 @@
           "type": "object",
           "title": "valveTitle",
           "_format": "grid",
-          "propertyOrder": 3,
+          "propertyOrder": 10,
           "options": {
             "disable_edit_json": true,
             "disable_properties": true,
@@ -678,23 +678,6 @@
               },
               "description": "valveNoDescription"
             },
-            "mode": {
-              "type": "string",
-              "title": "valveModeTitle",
-              "enum": [
-                "onoff",
-                "pwm"
-              ],
-              "default": "onoff",
-              "propertyOrder": 3,
-              "options": {
-                "enum_titles": [
-                  "valveModeOnoff",
-                  "valveModePwm"
-                ],
-                "grid_columns": 8
-              }
-            },
             "minOn": {
               "type": "integer",
               "title": "valveMinOnTitle",
@@ -743,9 +726,25 @@
                   "mode": "pwm"
                 }
               }
+            },
+            "mode": {
+              "type": "string",
+              "title": "valveModeTitle",
+              "enum": [
+                "onoff",
+                "pwm"
+              ],
+              "default": "onoff",
+              "propertyOrder": 3,
+              "options": {
+                "enum_titles": [
+                  "valveModeOnoff",
+                  "valveModePwm"
+                ],
+                "grid_columns": 8
+              }
             }
           },
-          "description": "valveDescription",
           "required": [
             "topics"
           ]
@@ -753,7 +752,7 @@
         "fan": {
           "title": "fanTitle",
           "description": "fanDescription",
-          "propertyOrder": 4,
+          "propertyOrder": 11,
           "oneOf": [
             {
               "$ref": "#/definitions/fanRelays"
@@ -781,7 +780,7 @@
           "minLength": 0,
           "_format": "wb-autocomplete",
           "default": "",
-          "propertyOrder": 5,
+          "propertyOrder": 12,
           "options": {
             "patternmessage": "errMqttTopic",
             "inputAttributes": {
@@ -793,6 +792,58 @@
             "grid_columns": 12
           },
           "description": "convWaterDescription"
+        },
+        "role": {
+          "type": "string",
+          "title": "roleTitle",
+          "description": "roleDescription",
+          "enum": [
+            "auto",
+            "base",
+            "boost",
+            "all",
+            "custom"
+          ],
+          "default": "auto",
+          "propertyOrder": 3,
+          "options": {
+            "enum_titles": [
+              "roleAuto",
+              "roleBase",
+              "roleBoost",
+              "roleAll",
+              "roleCustom"
+            ],
+            "grid_columns": 4
+          }
+        },
+        "demandFrom": {
+          "type": "integer",
+          "title": "demandFromTitle",
+          "minimum": 0,
+          "maximum": 99,
+          "default": 0,
+          "propertyOrder": 4,
+          "options": {
+            "grid_columns": 2,
+            "dependencies": {
+              "role": "custom"
+            }
+          }
+        },
+        "demandTo": {
+          "type": "integer",
+          "title": "demandToTitle",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 100,
+          "propertyOrder": 5,
+          "options": {
+            "grid_columns": 2,
+            "dependencies": {
+              "role": "custom"
+            }
+          }
         }
       },
       "required": [
@@ -800,6 +851,293 @@
         "id",
         "valve",
         "fan"
+      ]
+    },
+    "floor": {
+      "type": "object",
+      "title": "floorTitle",
+      "headerTemplate": "{{ self.title }}",
+      "_format": "grid",
+      "options": {
+        "disable_edit_json": true,
+        "disable_collapse": false
+      },
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "floor"
+          ],
+          "default": "floor",
+          "options": {
+            "hidden": true
+          }
+        },
+        "id": {
+          "type": "string",
+          "title": "devIdTitle",
+          "description": "floorIdDescription",
+          "pattern": "^[a-z0-9_]+$",
+          "minLength": 1,
+          "maxLength": 20,
+          "default": "floor1",
+          "propertyOrder": 1,
+          "options": {
+            "patternmessage": "errId",
+            "grid_columns": 4
+          }
+        },
+        "title": {
+          "type": "string",
+          "title": "devNameTitle",
+          "default": "Тёплый пол",
+          "propertyOrder": 2,
+          "options": {
+            "grid_columns": 8
+          }
+        },
+        "valve": {
+          "type": "object",
+          "title": "floorValveTitle",
+          "_format": "grid",
+          "propertyOrder": 10,
+          "options": {
+            "disable_edit_json": true,
+            "disable_properties": true,
+            "disable_collapse": false
+          },
+          "properties": {
+            "topics": {
+              "type": "array",
+              "title": "valveTopicsTitle",
+              "_format": "table",
+              "propertyOrder": 1,
+              "items": {
+                "type": "object",
+                "title": "topicRowTitle",
+                "properties": {
+                  "control": {
+                    "type": "string",
+                    "title": "topicColTitle",
+                    "pattern": "^$|^[^/+#]+/[^/+#]+$",
+                    "minLength": 0,
+                    "_format": "wb-autocomplete",
+                    "default": "",
+                    "options": {
+                      "patternmessage": "errMqttTopic",
+                      "inputAttributes": {
+                        "placeholder": "phMqttTopic"
+                      },
+                      "wb": {
+                        "data": "devices"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "control"
+                ]
+              },
+              "options": {
+                "disable_array_reorder": true,
+                "disable_collapse": true,
+                "grid_columns": 12
+              },
+              "description": "valveTopicsDescription",
+              "minItems": 1
+            },
+            "normallyOpen": {
+              "type": "boolean",
+              "title": "valveNoTitle",
+              "default": false,
+              "_format": "checkbox",
+              "propertyOrder": 2,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "valveNoDescription"
+            },
+            "minOn": {
+              "type": "integer",
+              "title": "valveMinOnTitle",
+              "minimum": 0,
+              "maximum": 1800,
+              "default": 180,
+              "propertyOrder": 4,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "valveMinOnDescription"
+            },
+            "minOff": {
+              "type": "integer",
+              "title": "valveMinOffTitle",
+              "minimum": 0,
+              "maximum": 1800,
+              "default": 180,
+              "propertyOrder": 5,
+              "options": {
+                "grid_columns": 4
+              }
+            },
+            "openTime": {
+              "type": "integer",
+              "title": "valveOpenTimeTitle",
+              "minimum": 30,
+              "maximum": 600,
+              "default": 180,
+              "propertyOrder": 6,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "valveOpenTimeDescription"
+            },
+            "cycle": {
+              "type": "integer",
+              "title": "valveCycleTitle",
+              "minimum": 300,
+              "maximum": 3600,
+              "default": 1200,
+              "propertyOrder": 7,
+              "options": {
+                "grid_columns": 4
+              }
+            }
+          },
+          "required": [
+            "topics"
+          ]
+        },
+        "floorSensors": {
+          "type": "array",
+          "title": "floorSensorsTitle",
+          "_format": "table",
+          "propertyOrder": 11,
+          "items": {
+            "type": "object",
+            "title": "topicRowTitle",
+            "properties": {
+              "control": {
+                "type": "string",
+                "title": "topicColTitle",
+                "pattern": "^$|^[^/+#]+/[^/+#]+$",
+                "minLength": 0,
+                "_format": "wb-autocomplete",
+                "default": "",
+                "options": {
+                  "patternmessage": "errMqttTopic",
+                  "inputAttributes": {
+                    "placeholder": "phMqttTopic"
+                  },
+                  "wb": {
+                    "data": "devices"
+                  }
+                }
+              }
+            },
+            "required": [
+              "control"
+            ]
+          },
+          "options": {
+            "disable_array_reorder": true,
+            "disable_collapse": true,
+            "grid_columns": 12
+          },
+          "description": "floorSensorsDescription"
+        },
+        "minFloor": {
+          "type": "number",
+          "title": "minFloorTitle",
+          "minimum": 0,
+          "maximum": 35,
+          "default": 0,
+          "propertyOrder": 12,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "minFloorDescription"
+        },
+        "maxFloor": {
+          "type": "number",
+          "title": "maxFloorTitle",
+          "minimum": 20,
+          "maximum": 40,
+          "default": 29,
+          "propertyOrder": 13,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "maxFloorDescription"
+        },
+        "floorHyst": {
+          "type": "number",
+          "title": "floorHystTitle",
+          "minimum": 0.2,
+          "maximum": 3,
+          "default": 0.5,
+          "propertyOrder": 14,
+          "options": {
+            "grid_columns": 4
+          }
+        },
+        "role": {
+          "type": "string",
+          "title": "roleTitle",
+          "description": "roleDescription",
+          "enum": [
+            "auto",
+            "base",
+            "boost",
+            "all",
+            "custom"
+          ],
+          "default": "auto",
+          "propertyOrder": 3,
+          "options": {
+            "enum_titles": [
+              "roleAuto",
+              "roleBase",
+              "roleBoost",
+              "roleAll",
+              "roleCustom"
+            ],
+            "grid_columns": 4
+          }
+        },
+        "demandFrom": {
+          "type": "integer",
+          "title": "demandFromTitle",
+          "minimum": 0,
+          "maximum": 99,
+          "default": 0,
+          "propertyOrder": 4,
+          "options": {
+            "grid_columns": 2,
+            "dependencies": {
+              "role": "custom"
+            }
+          }
+        },
+        "demandTo": {
+          "type": "integer",
+          "title": "demandToTitle",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 100,
+          "propertyOrder": 5,
+          "options": {
+            "grid_columns": 2,
+            "dependencies": {
+              "role": "custom"
+            }
+          }
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "valve"
       ]
     },
     "zone": {
@@ -1159,7 +1497,19 @@
           "description": "devicesDescription",
           "propertyOrder": 50,
           "items": {
-            "$ref": "#/definitions/convector"
+            "title": "deviceTitle",
+            "oneOf": [
+              {
+                "$ref": "#/definitions/convector"
+              },
+              {
+                "$ref": "#/definitions/floor"
+              }
+            ],
+            "options": {
+              "keep_oneof_values": false,
+              "disable_edit_json": true
+            }
           },
           "options": {
             "disable_array_reorder": true,
@@ -1247,31 +1597,54 @@
       "fanModbusOutTitle": "Speed register *",
       "fanStepsTitle": "Speed steps (0 = smooth)",
       "fanStepsDescription": "Steps: writes 0..N. Smooth: value range below",
+      "fanValuesTitle": "Step values",
+      "fanValuesDescription": "Optional: register value for steps 1..N, e.g. 30, 60, 100. Overrides the step count",
+      "fanValueColTitle": "Value",
       "fanModbusValueMinTitle": "Value at 0 % (smooth)",
       "fanModbusValueMaxTitle": "Value at 100 % (smooth)",
+      "fanMinChangeTitle": "Smooth: min change to write, %",
+      "fanMinChangeDescription": "Controller boards may store every write in non-volatile memory",
       "convTitle": "Convector",
-      "convIdTitle": "id",
       "convIdDescription": "Prefix of the controls on the room card: conv1_valve, conv1_fan",
-      "convNameTitle": "Name",
+      "devIdTitle": "id",
+      "devNameTitle": "Name",
       "valveTopicsTitle": "Relays *",
-      "valveTopicsDescription": "Usually one; several heads on one convector — several",
+      "valveTopicsDescription": "All relays of the group switch together",
       "valveNoTitle": "Normally open (NO)",
       "valveNoDescription": "Default NC: closed when de-energized",
-      "valveModeTitle": "Mode",
-      "valveModeOnoff": "On/off by demand",
-      "valveModePwm": "PWM (underfloor heating)",
       "valveMinOnTitle": "Min open time, s",
       "valveMinOnDescription": "Thermal actuators take 2–4 min to open",
       "valveMinOffTitle": "Min closed time, s",
       "valveOpenTimeTitle": "Full opening time, s",
       "valveOpenTimeDescription": "From the datasheet, typically 180",
       "valveCycleTitle": "PWM period, s",
+      "valveModeTitle": "Mode",
+      "valveModeOnoff": "On/off by demand",
+      "valveModePwm": "PWM",
       "valveTitle": "Thermal actuator (valve)",
-      "valveDescription": "Relays of thermoelectric actuators that switch together",
       "fanTitle": "Fan",
       "fanDescription": "Pick the fan control type",
       "convWaterTitle": "Water / heat exchanger sensor",
       "convWaterDescription": "Optional: fan waits for hot water by this sensor instead of the delay",
+      "roleTitle": "Role in heating",
+      "roleDescription": "Auto: with both a floor and a convector in the room the floor is the base and the convector the boost",
+      "roleAuto": "Auto",
+      "roleBase": "Base (demand 0–70 %)",
+      "roleBoost": "Boost (demand 50–100 %)",
+      "roleAll": "Always (0–100 %)",
+      "roleCustom": "Custom range",
+      "demandFromTitle": "Demand from, %",
+      "demandToTitle": "Demand to, %",
+      "floorTitle": "Underfloor heating",
+      "floorIdDescription": "Prefix of the controls on the room card: floor1_valve, floor1_floor",
+      "floorValveTitle": "Loop thermal actuators",
+      "floorSensorsTitle": "Floor sensors",
+      "floorSensorsDescription": "In the screed, one or more; the average of healthy ones is used. Without them the loops follow the room demand by PWM",
+      "minFloorTitle": "Floor minimum, °C (0 = room setpoint)",
+      "minFloorDescription": "The floor is kept at least this warm even when the room needs no heat",
+      "maxFloorTitle": "Floor maximum, °C",
+      "maxFloorDescription": "EN 1264: 29 living rooms, 33 bathrooms. SP 60.13330: 26 for permanent stay",
+      "floorHystTitle": "Floor hysteresis, K",
       "zoneTitle": "Room",
       "zoneIdTitle": "MQTT id",
       "zoneIdDescription": "Virtual device id, e.g. climate_living",
@@ -1308,18 +1681,14 @@
       "safFailSafeTitle": "Demand on sensor failure, %",
       "safFailSafeDescription": "0 = do not heat, alarm on the card",
       "safetyTitle": "Protection",
-      "devicesTitle": "Convectors",
-      "devicesDescription": "All of them follow the heat demand of the room",
+      "devicesTitle": "Heating devices",
+      "devicesDescription": "Convectors and underfloor heating: all follow the heat demand of the room",
+      "deviceTitle": "Device",
       "zoneDebugTitle": "Debug logging",
       "climateTitle": "Climate control",
-      "climateDescription": "Rooms: setpoint, heat demand, convectors (thermal actuators and fans)",
+      "climateDescription": "Rooms: setpoint, heat demand, convectors and underfloor heating",
       "zonesTitle": "Rooms",
-      "zonesDescription": "One entry per room. Each creates its own virtual device.",
-      "fanValuesTitle": "Step values",
-      "fanValuesDescription": "Optional: register value for steps 1..N, e.g. 30, 60, 100. Overrides the step count",
-      "fanValueColTitle": "Value",
-      "fanMinChangeTitle": "Smooth: min change to write, %",
-      "fanMinChangeDescription": "Controller boards may store every write in non-volatile memory"
+      "zonesDescription": "One entry per room. Each creates its own virtual device."
     },
     "ru": {
       "errMqttTopic": "Формат: <устройство>/<контрол>",
@@ -1363,31 +1732,54 @@
       "fanModbusOutTitle": "Регистр скорости *",
       "fanStepsTitle": "Ступеней скорости (0 — плавно)",
       "fanStepsDescription": "Ступени: пишется 0..N. Плавно: шкала ниже",
+      "fanValuesTitle": "Значения ступеней",
+      "fanValuesDescription": "Необязательно: значение регистра для ступеней 1..N, например 30, 60, 100. Число ступеней берётся отсюда",
+      "fanValueColTitle": "Значение",
       "fanModbusValueMinTitle": "Значение при 0 % (плавно)",
       "fanModbusValueMaxTitle": "Значение при 100 % (плавно)",
+      "fanMinChangeTitle": "Плавно: не писать изменения меньше, %",
+      "fanMinChangeDescription": "Плата конвектора может сохранять каждую запись в энергонезависимую память",
       "convTitle": "Конвектор",
-      "convIdTitle": "id",
       "convIdDescription": "Префикс контролов на карточке помещения: conv1_valve, conv1_fan",
-      "convNameTitle": "Название",
+      "devIdTitle": "id",
+      "devNameTitle": "Название",
       "valveTopicsTitle": "Реле *",
-      "valveTopicsDescription": "Обычно одно; несколько головок на одном конвекторе — несколько",
+      "valveTopicsDescription": "Все реле группы переключаются вместе",
       "valveNoTitle": "Нормально открытые (NO)",
       "valveNoDescription": "По умолчанию NC: обесточена — закрыта",
-      "valveModeTitle": "Режим",
-      "valveModeOnoff": "Открыт/закрыт по потребности",
-      "valveModePwm": "ШИМ (как тёплый пол)",
       "valveMinOnTitle": "Мин. время открытой, с",
       "valveMinOnDescription": "Термоголовке нужно 2–4 мин, чтобы открыться",
       "valveMinOffTitle": "Мин. время закрытой, с",
       "valveOpenTimeTitle": "Время полного открытия, с",
       "valveOpenTimeDescription": "Из паспорта, обычно 180",
       "valveCycleTitle": "Период ШИМ, с",
+      "valveModeTitle": "Режим",
+      "valveModeOnoff": "Открыт/закрыт по потребности",
+      "valveModePwm": "ШИМ",
       "valveTitle": "Термоголовка (клапан)",
-      "valveDescription": "Реле термоголовок, которые переключаются вместе",
       "fanTitle": "Вентилятор",
       "fanDescription": "Выберите способ управления вентилятором",
       "convWaterTitle": "Датчик воды / теплообменника",
       "convWaterDescription": "Необязательно: вентилятор ждёт горячую воду по нему, а не по таймеру",
+      "roleTitle": "Участие в нагреве",
+      "roleDescription": "Авто: если в помещении есть и пол, и конвектор, — пол основной, конвектор догрев",
+      "roleAuto": "Авто",
+      "roleBase": "Основной (потребность 0–70 %)",
+      "roleBoost": "Догрев (потребность 50–100 %)",
+      "roleAll": "Всегда (0–100 %)",
+      "roleCustom": "Свои границы",
+      "demandFromTitle": "Потребность от, %",
+      "demandToTitle": "Потребность до, %",
+      "floorTitle": "Тёплый пол",
+      "floorIdDescription": "Префикс контролов на карточке помещения: floor1_valve, floor1_floor",
+      "floorValveTitle": "Термоголовки петель",
+      "floorSensorsTitle": "Датчики пола",
+      "floorSensorsDescription": "В стяжке, один или несколько; берётся среднее по исправным. Без них петли работают ШИМ по потребности помещения",
+      "minFloorTitle": "Пол не ниже, °C (0 — по уставке помещения)",
+      "minFloorDescription": "Пол держится не ниже этой температуры, даже когда помещению тепло не нужно",
+      "maxFloorTitle": "Пол не выше, °C",
+      "maxFloorDescription": "EN 1264: 29 жилые, 33 санузлы. СП 60.13330: 26 для постоянного пребывания",
+      "floorHystTitle": "Гистерезис пола, К",
       "zoneTitle": "Помещение",
       "zoneIdTitle": "MQTT id",
       "zoneIdDescription": "id виртуального устройства, например climate_living",
@@ -1424,18 +1816,14 @@
       "safFailSafeTitle": "Потребность при отказе датчиков, %",
       "safFailSafeDescription": "0 — не греть, авария на карточке",
       "safetyTitle": "Защиты",
-      "devicesTitle": "Конвекторы",
-      "devicesDescription": "Все работают от общей потребности помещения в тепле",
+      "devicesTitle": "Отопительные приборы",
+      "devicesDescription": "Конвекторы и тёплый пол: все работают от общей потребности помещения в тепле",
+      "deviceTitle": "Прибор",
       "zoneDebugTitle": "Отладочный журнал",
       "climateTitle": "Климат-контроль",
-      "climateDescription": "Помещения: уставка, потребность в тепле, конвекторы (термоголовки и вентиляторы)",
+      "climateDescription": "Помещения: уставка, потребность в тепле, конвекторы и тёплый пол",
       "zonesTitle": "Помещения",
-      "zonesDescription": "По записи на помещение. Каждое создаёт своё виртуальное устройство.",
-      "fanValuesTitle": "Значения ступеней",
-      "fanValuesDescription": "Необязательно: значение регистра для ступеней 1..N, например 30, 60, 100. Число ступеней берётся отсюда",
-      "fanValueColTitle": "Значение",
-      "fanMinChangeTitle": "Плавно: не писать изменения меньше, %",
-      "fanMinChangeDescription": "Плата конвектора может сохранять каждую запись в энергонезависимую память"
+      "zonesDescription": "По записи на помещение. Каждое создаёт своё виртуальное устройство."
     }
   }
 }

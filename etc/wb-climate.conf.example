@@ -116,9 +116,46 @@
           "type": "convector", "id": "conv4", "title": "Конвектор Modbus",
           "valve": { "topics": ["conv_mb_1/Valve"] },
           "fan": { "type": "modbus", "out": "conv_mb_1/Fan Speed", "steps": 3 }
-          // steps 0 — плавно: valueMin..valueMax при 0..100 %
+          // steps 0 — плавно: valueMin..valueMax при 0..100 %;
+          // values [30, 60, 100] — ступени, когда регистр ждёт проценты
         }
-        */
+        */,
+        {
+          // Тёплый пол в этом же помещении. Есть и пол, и конвекторы —
+          // роль «auto»: пол основной (потребность 0–70 %), конвекторы
+          // догрев (50–100 %). Пол регулируется по датчикам в стяжке:
+          // цель пола от minFloor (помещению тепло) до maxFloor (холодно).
+          "type": "floor",
+          "id": "floor1",
+          "title": "Тёплый пол",
+          "valve": {
+            "topics": ["wb-mr6c_46/K1", "wb-mr6c_46/K2"], // две петли
+            "cycle": 1200 // ШИМ, если датчиков пола нет или они отказали
+          },
+          "floorSensors": ["wb-w1/28-00000a1b2c3d"],
+          "minFloor": 0, // 0 — низ цели по уставке помещения
+          "maxFloor": 29, // EN 1264: 29 жилые; СП 60.13330: 26
+          "floorHyst": 0.5
+        }
+      ]
+    },
+    {
+      // Санузел: только тёплый пол, «комфортный пол» — не ниже 26 °C,
+      // даже если помещение греет полотенцесушитель
+      "id": "climate_bath",
+      "title": "Санузел",
+      "defaultSetpoint": 24,
+      "sensors": { "temperature": ["wb-msw-v3_22/Temperature"] },
+      "devices": [
+        {
+          "type": "floor",
+          "id": "floor1",
+          "title": "Тёплый пол",
+          "valve": { "topics": ["wb-mr6c_46/K3"] },
+          "floorSensors": ["wb-w1/28-00000a1b2c3e"],
+          "minFloor": 26,
+          "maxFloor": 31
+        }
       ]
     }
   ]

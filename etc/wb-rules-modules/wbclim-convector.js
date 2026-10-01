@@ -170,6 +170,14 @@ Convector.prototype.statusText = function (now) {
   return s + ', вентилятор ' + (this.fan.steps > 0 ? 'скорость ' + lvl : Math.round(lvl) + ' %');
 };
 
+/** Значения контролов на карточке помещения. */
+Convector.prototype.publish = function (set, now) {
+  set('valve', this.valve.open);
+  if (this.fan) set('fan', U.round(this.fan.level, 0));
+  if (this.water) set('water', U.round(this.water.get(0), 1));
+  set('status', this.statusText(now));
+};
+
 Convector.prototype.getFault = function () {
   return this.valve.getFault() || (this.fan ? this.fan.getFault() : null);
 };
@@ -195,6 +203,38 @@ Convector.prototype.halt = function () {
 
 /* ================================================================== */
 
+/** Контролы на карточке помещения: [{ name, spec, units }]. */
+function controlsOf(cfg, title) {
+  var list = [
+    {
+      name: 'valve',
+      spec: { title: { en: title + ': valve', ru: title + ': клапан' }, type: 'switch', value: false, readonly: true }
+    }
+  ];
+  var f = cfg.fan;
+  if (FAN.present(f)) {
+    var stepped =
+      f.type === 'relays' || (f.type === 'modbus' && (U.def(f.steps, 3) > 0 || (Array.isArray(f.values) && f.values.length > 0)));
+    list.push({
+      name: 'fan',
+      spec: { title: { en: title + ': fan', ru: title + ': вентилятор' }, type: 'value', value: 0 },
+      units: stepped ? null : '%'
+    });
+  }
+  if (cfg.waterSensor) {
+    list.push({
+      name: 'water',
+      spec: { title: { en: title + ': water', ru: title + ': вода' }, type: 'value', value: 0 },
+      units: 'deg C'
+    });
+  }
+  list.push({
+    name: 'status',
+    spec: { title: { en: title + ': status', ru: title + ': состояние' }, type: 'text', value: '' }
+  });
+  return list;
+}
+
 /** Незаполненные обязательные поля. */
 function missingOf(cfg) {
   var miss = [];
@@ -213,5 +253,6 @@ function outputsOf(cfg) {
 }
 
 exports.Convector = Convector;
+exports.controlsOf = controlsOf;
 exports.missingOf = missingOf;
 exports.outputsOf = outputsOf;

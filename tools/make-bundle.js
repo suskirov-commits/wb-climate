@@ -20,7 +20,7 @@ const ROOT = path.join(__dirname, '..');
 const MOD_DIR = path.join(ROOT, 'etc', 'wb-rules-modules');
 const OUT_DIR = path.join(ROOT, 'dist');
 
-const MODULES = ['wbclim-util', 'wbclim-valve', 'wbclim-fan', 'wbclim-convector', 'wbclim-zone'];
+const MODULES = ['wbclim-util', 'wbclim-valve', 'wbclim-fan', 'wbclim-convector', 'wbclim-floor', 'wbclim-zone'];
 
 const conf = fs.readFileSync(path.join(ROOT, 'etc', 'wb-climate.conf.example'), 'utf8');
 // Тело объекта — со строки, начинающейся с «{» (шапка-комментарий без скобок)
@@ -32,7 +32,7 @@ out += `/**
  * wb-climate.js — ОДНОФАЙЛОВАЯ СБОРКА
  *
  * Климат-контроль на Wiren Board: помещения, конвекторы (термоголовки
- * и вентиляторы — реле, 0-10 В, Modbus).
+ * и вентиляторы — реле, 0-10 В, Modbus), тёплый пол (по датчикам пола).
  *
  * КУДА ЗАГРУЖАТЬ:
  *   Веб-интерфейс контроллера -> Правила -> Новый скрипт
@@ -40,8 +40,8 @@ out += `/**
  *   модули и конфигурация уже внутри этого файла.
  *
  * ЧТО ПРАВИТЬ:
- *   Секцию CONFIG ниже — помещения, датчики, реле термоголовок
- *   и вентиляторов. Всё ниже отметки «КОД» трогать не нужно.
+ *   Секцию CONFIG ниже — помещения, датчики, реле термоголовок,
+ *   вентиляторов и петель пола. Всё ниже отметки «КОД» трогать не нужно.
  *
  * Для парка объектов лучше ставить пакетом (README, способ 1): там есть
  * страница настроек с выбором топиков из выпадающего списка.

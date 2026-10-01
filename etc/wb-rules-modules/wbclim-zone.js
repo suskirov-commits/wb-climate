@@ -3,11 +3,20 @@
  * @description Виртуальное устройство «Климатическая зона» (помещение).
  *
  * Пользователь задаёт уставку. Зона считает ПОТРЕБНОСТЬ В ТЕПЛЕ 0..100 %
- * и раздаёт её всем своим исполнителям — сейчас это конвекторы, дальше
- * тёплый пол, фанкойлы, кондиционеры, вентиляция, увлажнение. Каждый
+ * и раздаёт её всем своим исполнителям — сейчас это конвекторы и тёплый
+ * пол, дальше фанкойлы, кондиционеры, вентиляция, увлажнение. Каждый
  * исполнитель сам решает, как отработать потребность своими выходами.
  * За счёт этого все системы помещения работают как одно целое: одна
  * уставка, один регулятор, одна потребность.
+ *
+ * ДОЛИ ПОТРЕБНОСТИ. Каждый исполнитель отвечает за свой участок общей
+ * потребности и растягивает его на свои 0..100 % (роль, см. roleOf).
+ * Пол медленный и экономичный — он должен нести базовую нагрузку, а
+ * быстрый конвектор только догревать: утром, после проветривания, в
+ * сильный мороз. Если в помещении есть и пол, и конвектор, а участки не
+ * заданы, они выбираются сами (AUTO_SPLIT). Явные числа при смене состава
+ * помещения никто не пересчитает (wbmix, грабля №18), поэтому по
+ * умолчанию — «авто».
  *
  * РЕГУЛЯТОР ПОТРЕБНОСТИ (П + медленная И):
  *
@@ -41,6 +50,7 @@
 
 var U = require('wbclim-util');
 var CONV = require('wbclim-convector');
+var FLOOR = require('wbclim-floor');
 
 var MODE_AUTO = 0;
 var MODE_MANUAL = 1;
@@ -57,13 +67,38 @@ var STATE_TITLES = {
   config: 'Ошибка настройки'
 };
 
-/* Типы исполнителей. Новые системы (пол, фанкойл, кондиционер...)
+/* Типы исполнителей. Новые системы (фанкойл, кондиционер...)
  * добавляются сюда — зона работает с ними через общий интерфейс:
- *   update(demand, now, dt, force), statusText(now), getFault(),
- *   getWarning(), halt(), hasFan(), valve, fan, level, water. */
+ *   update(demand, now, dt, force, zone), publish(set, now), statusText(now),
+ *   getFault(), getWarning(), detach(), halt();
+ * для проверки конфигурации и карточки — controlsOf, missingOf, outputsOf.
+ * speed: slow — инерционный исполнитель (база), fast — быстрый (догрев). */
 var DEVICE_TYPES = {
-  convector: { make: CONV.Convector, missingOf: CONV.missingOf, outputsOf: CONV.outputsOf, name: 'Конвектор' }
+  convector: {
+    make: CONV.Convector,
+    controlsOf: CONV.controlsOf,
+    missingOf: CONV.missingOf,
+    outputsOf: CONV.outputsOf,
+    name: 'Конвектор',
+    speed: 'fast'
+  },
+  floor: {
+    make: FLOOR.Floor,
+    controlsOf: FLOOR.controlsOf,
+    missingOf: FLOOR.missingOf,
+    checkOf: FLOOR.checkOf,
+    outputsOf: FLOOR.outputsOf,
+    name: 'Тёплый пол',
+    speed: 'slow'
+  }
 };
+
+/**
+ * Участки потребности по умолчанию, если в помещении есть и медленные,
+ * и быстрые исполнители. Подобраны на стенде test/sim.js (модель стяжки
+ * и конвектора), см. PROMPT.md, раздел 8.
+ */
+var AUTO_SPLIT = { slow: [0, 70], fast: [50, 100] };
 
 var ID_RE = /^[a-z0-9_]+$/;
 
@@ -75,6 +110,54 @@ function deviceId(d, i) {
 function deviceTitle(d, i) {
   var t = DEVICE_TYPES[(d && d.type) || 'convector'];
   return d && d.title ? d.title : (t ? t.name : 'Устройство') + ' ' + (i + 1);
+}
+
+/**
+ * Роль исполнителя в нагреве -> участок общей потребности [from, to]:
+ *   auto   — по составу помещения: есть и пол, и конвектор — пол база,
+ *            конвектор догрев; иначе 0–100 %;
+ *   base   — основной (AUTO_SPLIT.slow), boost — догрев (AUTO_SPLIT.fast);
+ *   all    — 0–100 %;
+ *   custom — demandFrom..demandTo.
+ * Роль не задана, а числа заданы (конфиг вручную) — custom. В форме
+ * числа не могут быть «пустыми» (редактор сохранил бы нули), поэтому
+ * авто выражено ролью, а не отсутствием чисел.
+ */
+function roleOf(d) {
+  if (d.role) return d.role;
+  return U.isNum(d.demandFrom) || U.isNum(d.demandTo) ? 'custom' : 'auto';
+}
+
+function demandWindows(list) {
+  var hasSlow = false;
+  var hasFast = false;
+  var i, t;
+  for (i = 0; i < list.length; i++) {
+    t = DEVICE_TYPES[(list[i] && list[i].type) || 'convector'];
+    if (t && t.speed === 'slow') hasSlow = true;
+    if (t && t.speed === 'fast') hasFast = true;
+  }
+  var mixed = hasSlow && hasFast;
+  var res = [];
+  for (i = 0; i < list.length; i++) {
+    var d = list[i] || {};
+    t = DEVICE_TYPES[d.type || 'convector'];
+    var role = roleOf(d);
+    var w;
+    if (role === 'custom') w = [U.def(d.demandFrom, 0), U.def(d.demandTo, 100)];
+    else if (role === 'base') w = AUTO_SPLIT.slow;
+    else if (role === 'boost') w = AUTO_SPLIT.fast;
+    else if (role === 'all') w = [0, 100];
+    else w = mixed && t ? AUTO_SPLIT[t.speed] : [0, 100];
+    res.push([w[0], w[1]]);
+  }
+  return res;
+}
+
+/** Доля исполнителя: участок [from, to] общей потребности -> 0..100 %. */
+function localDemand(demand, w) {
+  if (demand >= 100) return 100;
+  return U.clamp(((demand - w[0]) * 100) / (w[1] - w[0]), 0, 100);
 }
 
 /* ================================================================== */
@@ -166,6 +249,7 @@ function Zone(cfg, problems) {
   }
 
   var list = cfg.devices || [];
+  var windows = demandWindows(list);
   for (var i = 0; i < list.length; i++) {
     var d = list[i];
     var t = DEVICE_TYPES[d.type || 'convector'];
@@ -173,7 +257,9 @@ function Zone(cfg, problems) {
     for (var k in d) if (Object.prototype.hasOwnProperty.call(d, k)) dc[k] = d[k];
     dc.id = deviceId(d, i);
     dc.title = deviceTitle(d, i);
-    this.devices.push(new t.make(dc, { log: this.log, id: this.id }));
+    var inst = new t.make(dc, { log: this.log, id: this.id });
+    inst.window = windows[i];
+    this.devices.push(inst);
   }
 
   // Интегратор — «сколько тепла помещению нужно вообще». Набирается
@@ -244,32 +330,16 @@ Zone.prototype._buildDevice = function () {
     '%'
   );
 
-  // Исполнители: клапан, вентилятор, датчик воды, текстовое состояние
+  // Контролы исполнителей (клапан, вентилятор, датчики, состояние) —
+  // набор задаёт сам тип исполнителя
   var list = cfg.devices || [];
   for (var i = 0; i < list.length; i++) {
     var d = list[i] || {};
+    var t = DEVICE_TYPES[d.type || 'convector'];
+    if (!t) continue;
     var id = deviceId(d, i);
-    var title = deviceTitle(d, i);
-    add(id + '_valve', {
-      title: { en: title + ': valve', ru: title + ': клапан' },
-      type: 'switch',
-      value: false,
-      readonly: true
-    });
-    if (d.fan && d.fan.type && d.fan.type !== 'none') {
-      var stepped =
-        d.fan.type === 'relays' ||
-        (d.fan.type === 'modbus' && (U.def(d.fan.steps, 3) > 0 || (Array.isArray(d.fan.values) && d.fan.values.length > 0)));
-      add(
-        id + '_fan',
-        { title: { en: title + ': fan', ru: title + ': вентилятор' }, type: 'value', value: 0 },
-        stepped ? null : '%'
-      );
-    }
-    if (d.waterSensor) {
-      add(id + '_water', { title: { en: title + ': water', ru: title + ': вода' }, type: 'value', value: 0 }, 'deg C');
-    }
-    add(id + '_status', { title: { en: title + ': status', ru: title + ': состояние' }, type: 'text', value: '' });
+    var ctls = t.controlsOf(d, deviceTitle(d, i));
+    for (var j = 0; j < ctls.length; j++) add(id + '_' + ctls[j].name, ctls[j].spec, ctls[j].units);
   }
 
   add('state', { title: { en: 'State', ru: 'Состояние' }, type: 'text', value: STATE_TITLES.off });
@@ -318,6 +388,14 @@ Zone.prototype._buildDevice = function () {
 
 Zone.prototype._c = function (name) {
   return this.id + '/' + name;
+};
+
+/** Функция записи контролов исполнителя: имя без префикса. */
+Zone.prototype._setter = function (prefix) {
+  var self = this;
+  return function (name, value) {
+    self._set(prefix + name, value);
+  };
 };
 
 Zone.prototype._set = function (name, value) {
@@ -565,17 +643,15 @@ Zone.prototype._tick = function () {
   // Выключили зону или открыли окно — клапаны закрываются сразу,
   // без выдержки минимального времени.
   var force = state === 'off' || state === 'window';
+  var info = { setpoint: sp, temperature: t };
   for (var i = 0; i < this.devices.length; i++) {
     var d = this.devices[i];
     try {
-      d.update(demand, now, dt, force);
+      d.update(localDemand(demand, d.window), now, dt, force, info);
+      d.publish(this._setter(d.id + '_'), now);
     } catch (e) {
       this.log.error('[{}] ошибка исполнителя {}: {}', this.id, d.id, e);
     }
-    this._set(d.id + '_valve', d.valve.open);
-    if (d.hasFan()) this._set(d.id + '_fan', U.round(d.fan.level, 0));
-    if (d.water) this._set(d.id + '_water', U.round(d.water.get(0), 1));
-    this._set(d.id + '_status', d.statusText(now));
 
     var f = d.getFault();
     if (f) this._alarm('dev_' + d.id, d.title + ': ' + f);
@@ -679,6 +755,18 @@ function checkZones(zones) {
 
       var miss = t.missingOf(d);
       if (miss.length) p.push(title + ': не задано: ' + miss.join(', '));
+      var bad = t.checkOf ? t.checkOf(d) : [];
+      for (var q = 0; q < bad.length; q++) p.push(title + ': ' + bad[q]);
+      var role = roleOf(d);
+      if (['auto', 'base', 'boost', 'all', 'custom'].indexOf(role) < 0) {
+        p.push(title + ': неизвестная роль «' + role + '»');
+      } else if (role === 'custom') {
+        var df = U.def(d.demandFrom, 0);
+        var dto = U.def(d.demandTo, 100);
+        if (!(df >= 0 && dto <= 100 && df < dto)) {
+          p.push(title + ': доля потребности ' + df + '…' + dto + ' % — нужно 0 ≤ от < до ≤ 100');
+        }
+      }
 
       var outs = t.outputsOf(d);
       for (var k = 0; k < outs.length; k++) {

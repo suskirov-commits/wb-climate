@@ -44,6 +44,10 @@ check('схема компилируется как draft-04', err === null, err
 check('эталон валиден', validate && validate(conf), JSON.stringify(validate && validate.errors && validate.errors[0]));
 check('путь к конфигурации', schema.configFile && schema.configFile.path === '/etc/wb-climate.conf');
 check('перезапускаемый сервис — wb-rules', schema.configFile && schema.configFile.service === 'wb-rules');
+{
+  const r = require('child_process').spawnSync('node', [path.join(ROOT, 'tools', 'make-schema.js'), '--check'], { encoding: 'utf8' });
+  check('схема соответствует генератору tools/make-schema.js', r.status === 0, r.stdout.trim());
+}
 
 // Каждый тип вентилятора — ровно одна ветка oneOf
 const zoneOf = (fan) => ({ zones: [Object.assign({}, conf.zones[0], { devices: [Object.assign({}, conf.zones[0].devices[0], { fan })] })] });
@@ -58,6 +62,12 @@ for (const fan of [
   check('вентилятор «' + fan.type + '» проходит oneOf', validate(zoneOf(fan)), JSON.stringify(validate.errors && validate.errors[0]));
 }
 check('неизвестный тип вентилятора отвергается', !validate(zoneOf({ type: 'jet' })));
+const withDev = (dev) => ({ zones: [Object.assign({}, conf.zones[0], { devices: [dev] })] });
+const floorDev = { type: 'floor', id: 'floor1', valve: { topics: [{ control: 'r/K1' }] }, floorSensors: [{ control: 'w1/f' }], minFloor: 24, maxFloor: 29 };
+check('тёплый пол проходит oneOf приборов', validate(withDev(floorDev)), JSON.stringify(validate.errors && validate.errors[0]));
+check('пол с ролью «свои границы»', validate(withDev(Object.assign({}, floorDev, { role: 'custom', demandFrom: 0, demandTo: 60 }))), JSON.stringify(validate.errors && validate.errors[0]));
+check('неизвестная роль отвергается', !validate(withDev(Object.assign({}, floorDev, { role: 'turbo' }))));
+check('неизвестный тип прибора отвергается', !validate(withDev(Object.assign({}, floorDev, { type: 'radiator' }))));
 check('четыре скорости реле отвергаются', !validate(zoneOf({ type: 'relays', speeds: [1, 2, 3, 4].map((i) => ({ control: 'a/K' + i })) })));
 const badId = JSON.parse(JSON.stringify(conf));
 badId.zones[0].devices[0].id = 'Conv-1';
@@ -74,7 +84,7 @@ const topicFields = [];
 check('полей-топиков найдено', topicFields.length >= 10, topicFields.length);
 const noAuto = topicFields.filter((f) => f.n._format !== 'wb-autocomplete' || !f.n.options || !f.n.options.wb || f.n.options.wb.data !== 'devices');
 check('у всех — wb-autocomplete по devices', noAuto.length === 0, noAuto.map((f) => f.p).join(', '));
-for (const name of ['temperature', 'humidity', 'topics', 'speeds', 'out', 'enable', 'waterSensor']) {
+for (const name of ['temperature', 'humidity', 'topics', 'speeds', 'out', 'enable', 'waterSensor', 'floorSensors']) {
   check('поле «' + name + '» выбирается из списка', topicFields.some((f) => f.p.indexOf('/' + name + '/') >= 0 || f.p.endsWith('/' + name)), name);
 }
 
@@ -132,6 +142,8 @@ const z = new ZONE.Zone({ id: 'd', sensors: { temperature: ['x/y'] }, devices: [
 const c = z.devices[0];
 const zm = new ZONE.Zone({ id: 'm', sensors: { temperature: ['x/y'] }, devices: [{ id: 'c', valve: { topics: ['x/v2'] }, fan: { type: 'modbus', out: 'x/f' } }] }, []);
 const mb = zm.devices[0];
+const zf = new ZONE.Zone({ id: 'f', sensors: { temperature: ['x/y'] }, devices: [{ type: 'floor', id: 'fl', valve: { topics: ['x/v3'] } }] }, []);
+const fl = zf.devices[0];
 const defs = schema.definitions;
 const pairs = [
   ['band', defs.zone.properties.control.properties.band.default, z.bandDefault],
@@ -155,6 +167,14 @@ const pairs = [
   ['fan.interlock', defs.fanRelays.properties.interlock.default, c.fan.interlockMs],
   ['fan.min', defs.fanAnalog.properties.min.default, c.fanMin],
   ['modbus.minChange', defs.fanModbus.properties.minChange.default, mb.fan.minChange],
+  ['floor.minFloor', defs.floor.properties.minFloor.default, fl.minFloor],
+  ['floor.maxFloor', defs.floor.properties.maxFloor.default, fl.maxFloor],
+  ['floor.floorHyst', defs.floor.properties.floorHyst.default, fl.hyst],
+  ['floor.valve.cycle', defs.floor.properties.valve.properties.cycle.default, fl.valve.cycleMs / 1000],
+  ['floor.valve.minOn', defs.floor.properties.valve.properties.minOn.default, fl.valve.minOnMs / 1000],
+  ['floor.valve.minOff', defs.floor.properties.valve.properties.minOff.default, fl.valve.minOffMs / 1000],
+  ['floor.valve.openTime', defs.floor.properties.valve.properties.openTime.default, fl.valve.openTimeMs / 1000],
+  ['role', defs.floor.properties.role.default, 'auto'],
   ['modbus.steps', defs.fanModbus.properties.steps.default, mb.fan.steps]
 ];
 for (const [name, s, k] of pairs) check('умолчание ' + name + ': форма ' + s + ' = код ' + k, s === k);

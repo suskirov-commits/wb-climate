@@ -2,7 +2,7 @@
  * wb-climate.js — ОДНОФАЙЛОВАЯ СБОРКА
  *
  * Климат-контроль на Wiren Board: помещения, конвекторы (термоголовки
- * и вентиляторы — реле, 0-10 В, Modbus).
+ * и вентиляторы — реле, 0-10 В, Modbus), тёплый пол (по датчикам пола).
  *
  * КУДА ЗАГРУЖАТЬ:
  *   Веб-интерфейс контроллера -> Правила -> Новый скрипт
@@ -10,8 +10,8 @@
  *   модули и конфигурация уже внутри этого файла.
  *
  * ЧТО ПРАВИТЬ:
- *   Секцию CONFIG ниже — помещения, датчики, реле термоголовок
- *   и вентиляторов. Всё ниже отметки «КОД» трогать не нужно.
+ *   Секцию CONFIG ниже — помещения, датчики, реле термоголовок,
+ *   вентиляторов и петель пола. Всё ниже отметки «КОД» трогать не нужно.
  *
  * Для парка объектов лучше ставить пакетом (README, способ 1): там есть
  * страница настроек с выбором топиков из выпадающего списка.
@@ -130,9 +130,46 @@ var CONFIG = {
           "type": "convector", "id": "conv4", "title": "Конвектор Modbus",
           "valve": { "topics": ["conv_mb_1/Valve"] },
           "fan": { "type": "modbus", "out": "conv_mb_1/Fan Speed", "steps": 3 }
-          // steps 0 — плавно: valueMin..valueMax при 0..100 %
+          // steps 0 — плавно: valueMin..valueMax при 0..100 %;
+          // values [30, 60, 100] — ступени, когда регистр ждёт проценты
         }
-        */
+        */,
+        {
+          // Тёплый пол в этом же помещении. Есть и пол, и конвекторы —
+          // роль «auto»: пол основной (потребность 0–70 %), конвекторы
+          // догрев (50–100 %). Пол регулируется по датчикам в стяжке:
+          // цель пола от minFloor (помещению тепло) до maxFloor (холодно).
+          "type": "floor",
+          "id": "floor1",
+          "title": "Тёплый пол",
+          "valve": {
+            "topics": ["wb-mr6c_46/K1", "wb-mr6c_46/K2"], // две петли
+            "cycle": 1200 // ШИМ, если датчиков пола нет или они отказали
+          },
+          "floorSensors": ["wb-w1/28-00000a1b2c3d"],
+          "minFloor": 0, // 0 — низ цели по уставке помещения
+          "maxFloor": 29, // EN 1264: 29 жилые; СП 60.13330: 26
+          "floorHyst": 0.5
+        }
+      ]
+    },
+    {
+      // Санузел: только тёплый пол, «комфортный пол» — не ниже 26 °C,
+      // даже если помещение греет полотенцесушитель
+      "id": "climate_bath",
+      "title": "Санузел",
+      "defaultSetpoint": 24,
+      "sensors": { "temperature": ["wb-msw-v3_22/Temperature"] },
+      "devices": [
+        {
+          "type": "floor",
+          "id": "floor1",
+          "title": "Тёплый пол",
+          "valve": { "topics": ["wb-mr6c_46/K3"] },
+          "floorSensors": ["wb-w1/28-00000a1b2c3e"],
+          "minFloor": 26,
+          "maxFloor": 31
+        }
       ]
     }
   ]
@@ -1119,6 +1156,14 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       return s + ', вентилятор ' + (this.fan.steps > 0 ? 'скорость ' + lvl : Math.round(lvl) + ' %');
     };
 
+    /** Значения контролов на карточке помещения. */
+    Convector.prototype.publish = function (set, now) {
+      set('valve', this.valve.open);
+      if (this.fan) set('fan', U.round(this.fan.level, 0));
+      if (this.water) set('water', U.round(this.water.get(0), 1));
+      set('status', this.statusText(now));
+    };
+
     Convector.prototype.getFault = function () {
       return this.valve.getFault() || (this.fan ? this.fan.getFault() : null);
     };
@@ -1144,6 +1189,38 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
 
     /* ================================================================== */
 
+    /** Контролы на карточке помещения: [{ name, spec, units }]. */
+    function controlsOf(cfg, title) {
+      var list = [
+        {
+          name: 'valve',
+          spec: { title: { en: title + ': valve', ru: title + ': клапан' }, type: 'switch', value: false, readonly: true }
+        }
+      ];
+      var f = cfg.fan;
+      if (FAN.present(f)) {
+        var stepped =
+          f.type === 'relays' || (f.type === 'modbus' && (U.def(f.steps, 3) > 0 || (Array.isArray(f.values) && f.values.length > 0)));
+        list.push({
+          name: 'fan',
+          spec: { title: { en: title + ': fan', ru: title + ': вентилятор' }, type: 'value', value: 0 },
+          units: stepped ? null : '%'
+        });
+      }
+      if (cfg.waterSensor) {
+        list.push({
+          name: 'water',
+          spec: { title: { en: title + ': water', ru: title + ': вода' }, type: 'value', value: 0 },
+          units: 'deg C'
+        });
+      }
+      list.push({
+        name: 'status',
+        spec: { title: { en: title + ': status', ru: title + ': состояние' }, type: 'text', value: '' }
+      });
+      return list;
+    }
+
     /** Незаполненные обязательные поля. */
     function missingOf(cfg) {
       var miss = [];
@@ -1162,8 +1239,247 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
     }
 
     exports.Convector = Convector;
+    exports.controlsOf = controlsOf;
     exports.missingOf = missingOf;
     exports.outputsOf = outputsOf;
+
+  };
+
+  /* ---------------- модуль wbclim-floor ---------------- */
+  __defs['wbclim-floor'] = function (exports, module, require) {
+    /**
+     * @file wbclim-floor.js
+     * @description Исполнитель «Тёплый пол»: термоголовки петель на коллекторе,
+     *              регулирование по датчикам пола.
+     *
+     * КАСКАД. Помещение (внешний контур) считает потребность в тепле по
+     * воздуху. Пол (внутренний контур) превращает её в ЦЕЛЕВУЮ ТЕМПЕРАТУРУ
+     * ПОЛА и держит её по своим датчикам:
+     *
+     *   цель = низ + (maxFloor − низ) · потребность / 100
+     *   низ  = minFloor, если задан, иначе уставка помещения
+     *
+     *   - помещению тепло (потребность 0) — пол держится на minFloor и ниже
+     *     не опускается («комфортный пол»);
+     *   - помещению холодно — цель растёт до maxFloor; выше пол не поднимается
+     *     никогда (по умолчанию 29 °C — EN 1264 для жилых помещений;
+     *     СП 60.13330 для постоянного пребывания — не выше 26 °C);
+     *   - minFloor = maxFloor — пол просто держит заданную температуру,
+     *     уставка помещения на него не влияет;
+     *   - minFloor не задан — низ равен уставке помещения: пол, равный по
+     *     температуре воздуху, тепла не отдаёт.
+     *
+     * Почему каскад, а не ШИМ по потребности помещения: стяжка копит тепло
+     * часами, и регулятор по воздуху видит результат своих действий с большим
+     * опозданием. Датчик в стяжке видит его в разы раньше — внутренний контур
+     * гасит инерцию пола, а внешнему остаётся медленно подбирать нужную
+     * температуру пола. И ограничения пола (мин/макс) получаются естественно.
+     *
+     * Внутренний контур — двухпозиционный по температуре пола с гистерезисом
+     * floorHyst (по умолчанию 0,5 К: открыть ниже цели на 0,25 К, закрыть выше
+     * на 0,25 К) с минимальными временами термоголовки. На стенде 0,5 К держит
+     * помещение вдвое точнее, чем 1 К, при том же числе переключений.
+     *
+     * Нет датчиков пола или все отказали — ШИМ по потребности помещения
+     * (цикл 20 мин), отказ — предупреждение на карточке.
+     */
+
+    var U = require('wbclim-util');
+    var VALVE = require('wbclim-valve');
+
+    /**
+     * Термоголовки пола работают в режиме ШИМ: по датчику пола им подаётся
+     * 0 или 100 % (закрыть / открыть), без датчика — потребность помещения.
+     * Цикл и минимальные времена — по стенду test/sim.js (PROMPT.md, раздел 8).
+     */
+    var VALVE_DEFAULTS = { mode: 'pwm', cycle: 1200, minOn: 180, minOff: 180, openTime: 180 };
+
+    /**
+     * @param {Object} cfg описание (см. README):
+     *   id, title, valve{topics, normallyOpen, cycle, minOn, minOff, openTime},
+     *   floorSensors, minFloor, maxFloor, floorHyst
+     * @param {Object} ctx { log, id }
+     */
+    function Floor(cfg, ctx) {
+      cfg = cfg || {};
+      ctx = ctx || {};
+      this.id = cfg.id;
+      this.title = cfg.title || cfg.id;
+      this.log = ctx.log || log;
+      var tag = (ctx.id ? ctx.id + '/' : '') + this.id;
+
+      var v = {};
+      var k;
+      for (k in VALVE_DEFAULTS) if (Object.prototype.hasOwnProperty.call(VALVE_DEFAULTS, k)) v[k] = VALVE_DEFAULTS[k];
+      var src = cfg.valve || {};
+      for (k in src) if (Object.prototype.hasOwnProperty.call(src, k) && src[k] !== null && src[k] !== undefined) v[k] = src[k];
+      v.mode = 'pwm'; // см. VALVE_DEFAULTS: и каскад, и запасной режим идут через ШИМ
+      this.valve = new VALVE.ThermalValve(v, { log: this.log, id: tag });
+
+      // Стяжка меняется медленно: 0,1 К/с отсекает мусор с шины с запасом
+      this.floors = new U.SensorSet(cfg.floorSensors, { tau: 60, min: -20, max: 70, maxRate: 0.1 });
+      this.maxFloor = U.def(cfg.maxFloor, 29);
+      this.minFloor = U.def(cfg.minFloor, 0); // 0 — низ по уставке помещения
+      this.hyst = U.def(cfg.floorHyst, 0.5);
+
+      this.heating = false; // решение внутреннего контура
+      this.target = null; // целевая температура пола
+      this.temp = null; // средняя по датчикам пола
+      this.mode = 'pwm'; // cascade | pwm (запасной)
+      this.limit = false;
+
+      this.fan = null;
+      this.level = 0;
+    }
+
+    Floor.prototype.hasFan = function () {
+      return false;
+    };
+
+    /** Целевая температура пола по доле потребности. */
+    Floor.prototype._target = function (demand, zone) {
+      var hi = this.maxFloor;
+      var lo = this.minFloor > 0 ? this.minFloor : zone && U.isNum(zone.setpoint) ? zone.setpoint : 20;
+      lo = Math.min(lo, hi);
+      return lo + ((hi - lo) * U.clamp(demand, 0, 100)) / 100;
+    };
+
+    /**
+     * Такт.
+     * @param {number} demand доля потребности зоны для пола, %
+     * @param {number} now    мс
+     * @param {number} dt     с с прошлого такта
+     * @param {bool}   force  зона выключена или открыто окно — закрыть сразу
+     * @param {Object} zone   { setpoint } — уставка помещения
+     */
+    Floor.prototype.update = function (demand, now, dt, force, zone) {
+      var d = U.isNum(demand) ? demand : 0;
+      this.floors.poll(dt);
+      this.temp = this.floors.get(null);
+
+      if (force) {
+        this.heating = false;
+        this.limit = false;
+        this.target = null;
+        this.valve.update(0, now, true);
+        return;
+      }
+
+      if (this.temp === null) {
+        // Датчиков пола нет или все отказали — ШИМ по потребности помещения
+        this.mode = 'pwm';
+        this.target = null;
+        this.heating = false;
+        this.limit = false;
+        this.valve.update(d, now, false);
+        return;
+      }
+
+      this.mode = 'cascade';
+      this.target = this._target(d, zone);
+      var t = this.temp;
+      var half = this.hyst / 2;
+      if (!this.heating && t < this.target - half) this.heating = true;
+      else if (this.heating && t > this.target + half) this.heating = false;
+
+      // Жёсткий предел — закрыть сразу, без выдержки минимального времени
+      this.limit = t >= this.maxFloor;
+      if (this.limit) this.heating = false;
+      this.valve.update(this.heating ? 100 : 0, now, this.limit);
+    };
+
+    Floor.prototype.statusText = function () {
+      var s = this.valve.open ? 'петли открыты' : 'петли закрыты';
+      if (this.mode === 'pwm' || this.target === null) {
+        return this.floors.configured ? s + ', нет данных датчиков пола — ШИМ по помещению' : s + ', ШИМ по помещению';
+      }
+      s += ', пол ' + U.round(this.temp, 1) + ' °C, цель ' + U.round(this.target, 1) + ' °C';
+      if (this.limit) s += ' — ограничение ' + this.maxFloor + ' °C';
+      return s;
+    };
+
+    /** Значения контролов на карточке помещения. */
+    Floor.prototype.publish = function (set, now) {
+      set('valve', this.valve.open);
+      if (this.floors.configured) {
+        set('floor', this.temp === null ? 0 : U.round(this.temp, 1));
+        set('target', this.target === null ? 0 : U.round(this.target, 1));
+      }
+      set('status', this.statusText(now));
+    };
+
+    Floor.prototype.getFault = function () {
+      return this.valve.getFault();
+    };
+
+    Floor.prototype.getWarning = function () {
+      if (!this.floors.configured) return null;
+      var f = this.floors.faults();
+      if (!f) return null;
+      return this.floors.ok()
+        ? 'неисправен датчик пола ' + f + ', работаю по остальным'
+        : 'нет данных датчиков пола: ' + f + ' — ШИМ по помещению, ограничение пола не работает';
+    };
+
+    Floor.prototype.detach = function () {};
+
+    Floor.prototype.halt = function () {
+      this.valve.halt();
+    };
+
+    /* ================================================================== */
+
+    /** Контролы на карточке помещения: [{ name, spec, units }]. */
+    function controlsOf(cfg, title) {
+      var list = [
+        {
+          name: 'valve',
+          spec: { title: { en: title + ': loops', ru: title + ': петли' }, type: 'switch', value: false, readonly: true }
+        }
+      ];
+      if (U.topicList(cfg.floorSensors).length) {
+        list.push({
+          name: 'floor',
+          spec: { title: { en: title + ': floor', ru: title + ': пол' }, type: 'value', value: 0 },
+          units: 'deg C'
+        });
+        list.push({
+          name: 'target',
+          spec: { title: { en: title + ': floor target', ru: title + ': цель для пола' }, type: 'value', value: 0 },
+          units: 'deg C'
+        });
+      }
+      list.push({
+        name: 'status',
+        spec: { title: { en: title + ': status', ru: title + ': состояние' }, type: 'text', value: '' }
+      });
+      return list;
+    }
+
+    function missingOf(cfg) {
+      return U.topicList(cfg.valve && cfg.valve.topics).length ? [] : ['термоголовки петель'];
+    }
+
+    /** Заданные, но противоречивые параметры. */
+    function checkOf(cfg) {
+      var lo = U.def(cfg.minFloor, 0);
+      var hi = U.def(cfg.maxFloor, 29);
+      return lo > hi ? ['минимум пола ' + lo + ' °C выше максимума ' + hi + ' °C'] : [];
+    }
+
+    function outputsOf(cfg) {
+      var out = [];
+      var v = U.topicList(cfg.valve && cfg.valve.topics);
+      for (var i = 0; i < v.length; i++) out.push({ topic: v[i], name: 'термоголовка петли' });
+      return out;
+    }
+
+    exports.Floor = Floor;
+    exports.controlsOf = controlsOf;
+    exports.missingOf = missingOf;
+    exports.checkOf = checkOf;
+    exports.outputsOf = outputsOf;
+    exports.VALVE_DEFAULTS = VALVE_DEFAULTS;
 
   };
 
@@ -1174,11 +1490,20 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
      * @description Виртуальное устройство «Климатическая зона» (помещение).
      *
      * Пользователь задаёт уставку. Зона считает ПОТРЕБНОСТЬ В ТЕПЛЕ 0..100 %
-     * и раздаёт её всем своим исполнителям — сейчас это конвекторы, дальше
-     * тёплый пол, фанкойлы, кондиционеры, вентиляция, увлажнение. Каждый
+     * и раздаёт её всем своим исполнителям — сейчас это конвекторы и тёплый
+     * пол, дальше фанкойлы, кондиционеры, вентиляция, увлажнение. Каждый
      * исполнитель сам решает, как отработать потребность своими выходами.
      * За счёт этого все системы помещения работают как одно целое: одна
      * уставка, один регулятор, одна потребность.
+     *
+     * ДОЛИ ПОТРЕБНОСТИ. Каждый исполнитель отвечает за свой участок общей
+     * потребности и растягивает его на свои 0..100 % (роль, см. roleOf).
+     * Пол медленный и экономичный — он должен нести базовую нагрузку, а
+     * быстрый конвектор только догревать: утром, после проветривания, в
+     * сильный мороз. Если в помещении есть и пол, и конвектор, а участки не
+     * заданы, они выбираются сами (AUTO_SPLIT). Явные числа при смене состава
+     * помещения никто не пересчитает (wbmix, грабля №18), поэтому по
+     * умолчанию — «авто».
      *
      * РЕГУЛЯТОР ПОТРЕБНОСТИ (П + медленная И):
      *
@@ -1212,6 +1537,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
 
     var U = require('wbclim-util');
     var CONV = require('wbclim-convector');
+    var FLOOR = require('wbclim-floor');
 
     var MODE_AUTO = 0;
     var MODE_MANUAL = 1;
@@ -1228,13 +1554,38 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       config: 'Ошибка настройки'
     };
 
-    /* Типы исполнителей. Новые системы (пол, фанкойл, кондиционер...)
+    /* Типы исполнителей. Новые системы (фанкойл, кондиционер...)
      * добавляются сюда — зона работает с ними через общий интерфейс:
-     *   update(demand, now, dt, force), statusText(now), getFault(),
-     *   getWarning(), halt(), hasFan(), valve, fan, level, water. */
+     *   update(demand, now, dt, force, zone), publish(set, now), statusText(now),
+     *   getFault(), getWarning(), detach(), halt();
+     * для проверки конфигурации и карточки — controlsOf, missingOf, outputsOf.
+     * speed: slow — инерционный исполнитель (база), fast — быстрый (догрев). */
     var DEVICE_TYPES = {
-      convector: { make: CONV.Convector, missingOf: CONV.missingOf, outputsOf: CONV.outputsOf, name: 'Конвектор' }
+      convector: {
+        make: CONV.Convector,
+        controlsOf: CONV.controlsOf,
+        missingOf: CONV.missingOf,
+        outputsOf: CONV.outputsOf,
+        name: 'Конвектор',
+        speed: 'fast'
+      },
+      floor: {
+        make: FLOOR.Floor,
+        controlsOf: FLOOR.controlsOf,
+        missingOf: FLOOR.missingOf,
+        checkOf: FLOOR.checkOf,
+        outputsOf: FLOOR.outputsOf,
+        name: 'Тёплый пол',
+        speed: 'slow'
+      }
     };
+
+    /**
+     * Участки потребности по умолчанию, если в помещении есть и медленные,
+     * и быстрые исполнители. Подобраны на стенде test/sim.js (модель стяжки
+     * и конвектора), см. PROMPT.md, раздел 8.
+     */
+    var AUTO_SPLIT = { slow: [0, 70], fast: [50, 100] };
 
     var ID_RE = /^[a-z0-9_]+$/;
 
@@ -1246,6 +1597,54 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
     function deviceTitle(d, i) {
       var t = DEVICE_TYPES[(d && d.type) || 'convector'];
       return d && d.title ? d.title : (t ? t.name : 'Устройство') + ' ' + (i + 1);
+    }
+
+    /**
+     * Роль исполнителя в нагреве -> участок общей потребности [from, to]:
+     *   auto   — по составу помещения: есть и пол, и конвектор — пол база,
+     *            конвектор догрев; иначе 0–100 %;
+     *   base   — основной (AUTO_SPLIT.slow), boost — догрев (AUTO_SPLIT.fast);
+     *   all    — 0–100 %;
+     *   custom — demandFrom..demandTo.
+     * Роль не задана, а числа заданы (конфиг вручную) — custom. В форме
+     * числа не могут быть «пустыми» (редактор сохранил бы нули), поэтому
+     * авто выражено ролью, а не отсутствием чисел.
+     */
+    function roleOf(d) {
+      if (d.role) return d.role;
+      return U.isNum(d.demandFrom) || U.isNum(d.demandTo) ? 'custom' : 'auto';
+    }
+
+    function demandWindows(list) {
+      var hasSlow = false;
+      var hasFast = false;
+      var i, t;
+      for (i = 0; i < list.length; i++) {
+        t = DEVICE_TYPES[(list[i] && list[i].type) || 'convector'];
+        if (t && t.speed === 'slow') hasSlow = true;
+        if (t && t.speed === 'fast') hasFast = true;
+      }
+      var mixed = hasSlow && hasFast;
+      var res = [];
+      for (i = 0; i < list.length; i++) {
+        var d = list[i] || {};
+        t = DEVICE_TYPES[d.type || 'convector'];
+        var role = roleOf(d);
+        var w;
+        if (role === 'custom') w = [U.def(d.demandFrom, 0), U.def(d.demandTo, 100)];
+        else if (role === 'base') w = AUTO_SPLIT.slow;
+        else if (role === 'boost') w = AUTO_SPLIT.fast;
+        else if (role === 'all') w = [0, 100];
+        else w = mixed && t ? AUTO_SPLIT[t.speed] : [0, 100];
+        res.push([w[0], w[1]]);
+      }
+      return res;
+    }
+
+    /** Доля исполнителя: участок [from, to] общей потребности -> 0..100 %. */
+    function localDemand(demand, w) {
+      if (demand >= 100) return 100;
+      return U.clamp(((demand - w[0]) * 100) / (w[1] - w[0]), 0, 100);
     }
 
     /* ================================================================== */
@@ -1337,6 +1736,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       }
 
       var list = cfg.devices || [];
+      var windows = demandWindows(list);
       for (var i = 0; i < list.length; i++) {
         var d = list[i];
         var t = DEVICE_TYPES[d.type || 'convector'];
@@ -1344,7 +1744,9 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
         for (var k in d) if (Object.prototype.hasOwnProperty.call(d, k)) dc[k] = d[k];
         dc.id = deviceId(d, i);
         dc.title = deviceTitle(d, i);
-        this.devices.push(new t.make(dc, { log: this.log, id: this.id }));
+        var inst = new t.make(dc, { log: this.log, id: this.id });
+        inst.window = windows[i];
+        this.devices.push(inst);
       }
 
       // Интегратор — «сколько тепла помещению нужно вообще». Набирается
@@ -1415,32 +1817,16 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
         '%'
       );
 
-      // Исполнители: клапан, вентилятор, датчик воды, текстовое состояние
+      // Контролы исполнителей (клапан, вентилятор, датчики, состояние) —
+      // набор задаёт сам тип исполнителя
       var list = cfg.devices || [];
       for (var i = 0; i < list.length; i++) {
         var d = list[i] || {};
+        var t = DEVICE_TYPES[d.type || 'convector'];
+        if (!t) continue;
         var id = deviceId(d, i);
-        var title = deviceTitle(d, i);
-        add(id + '_valve', {
-          title: { en: title + ': valve', ru: title + ': клапан' },
-          type: 'switch',
-          value: false,
-          readonly: true
-        });
-        if (d.fan && d.fan.type && d.fan.type !== 'none') {
-          var stepped =
-            d.fan.type === 'relays' ||
-            (d.fan.type === 'modbus' && (U.def(d.fan.steps, 3) > 0 || (Array.isArray(d.fan.values) && d.fan.values.length > 0)));
-          add(
-            id + '_fan',
-            { title: { en: title + ': fan', ru: title + ': вентилятор' }, type: 'value', value: 0 },
-            stepped ? null : '%'
-          );
-        }
-        if (d.waterSensor) {
-          add(id + '_water', { title: { en: title + ': water', ru: title + ': вода' }, type: 'value', value: 0 }, 'deg C');
-        }
-        add(id + '_status', { title: { en: title + ': status', ru: title + ': состояние' }, type: 'text', value: '' });
+        var ctls = t.controlsOf(d, deviceTitle(d, i));
+        for (var j = 0; j < ctls.length; j++) add(id + '_' + ctls[j].name, ctls[j].spec, ctls[j].units);
       }
 
       add('state', { title: { en: 'State', ru: 'Состояние' }, type: 'text', value: STATE_TITLES.off });
@@ -1489,6 +1875,14 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
 
     Zone.prototype._c = function (name) {
       return this.id + '/' + name;
+    };
+
+    /** Функция записи контролов исполнителя: имя без префикса. */
+    Zone.prototype._setter = function (prefix) {
+      var self = this;
+      return function (name, value) {
+        self._set(prefix + name, value);
+      };
     };
 
     Zone.prototype._set = function (name, value) {
@@ -1736,17 +2130,15 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       // Выключили зону или открыли окно — клапаны закрываются сразу,
       // без выдержки минимального времени.
       var force = state === 'off' || state === 'window';
+      var info = { setpoint: sp, temperature: t };
       for (var i = 0; i < this.devices.length; i++) {
         var d = this.devices[i];
         try {
-          d.update(demand, now, dt, force);
+          d.update(localDemand(demand, d.window), now, dt, force, info);
+          d.publish(this._setter(d.id + '_'), now);
         } catch (e) {
           this.log.error('[{}] ошибка исполнителя {}: {}', this.id, d.id, e);
         }
-        this._set(d.id + '_valve', d.valve.open);
-        if (d.hasFan()) this._set(d.id + '_fan', U.round(d.fan.level, 0));
-        if (d.water) this._set(d.id + '_water', U.round(d.water.get(0), 1));
-        this._set(d.id + '_status', d.statusText(now));
 
         var f = d.getFault();
         if (f) this._alarm('dev_' + d.id, d.title + ': ' + f);
@@ -1850,6 +2242,18 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
 
           var miss = t.missingOf(d);
           if (miss.length) p.push(title + ': не задано: ' + miss.join(', '));
+          var bad = t.checkOf ? t.checkOf(d) : [];
+          for (var q = 0; q < bad.length; q++) p.push(title + ': ' + bad[q]);
+          var role = roleOf(d);
+          if (['auto', 'base', 'boost', 'all', 'custom'].indexOf(role) < 0) {
+            p.push(title + ': неизвестная роль «' + role + '»');
+          } else if (role === 'custom') {
+            var df = U.def(d.demandFrom, 0);
+            var dto = U.def(d.demandTo, 100);
+            if (!(df >= 0 && dto <= 100 && df < dto)) {
+              p.push(title + ': доля потребности ' + df + '…' + dto + ' % — нужно 0 ≤ от < до ≤ 100');
+            }
+          }
 
           var outs = t.outputsOf(d);
           for (var k = 0; k < outs.length; k++) {

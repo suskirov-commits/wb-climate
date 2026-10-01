@@ -683,4 +683,284 @@ console.log('\n=== 12. Перезагрузка сценария и переза
   check('интегратор восстановлен после перезапуска', Math.abs(Z2.get('room').integral - i1) < 1.5, i1 + ' -> ' + Z2.get('room').integral);
 }
 
+/* ================================================================== */
+console.log('\n=== 13. Тёплый пол: каскад по датчикам пола ===');
+const FL1 = 'w1/floor1',
+  FL2 = 'w1/floor2',
+  FV = 'mr6c_2/K1',
+  FV2 = 'mr6c_2/K2';
+
+function floorZone(extra, floorExtra) {
+  return Object.assign(
+    {
+      id: 'room',
+      title: 'Комната',
+      defaultSetpoint: 22,
+      sensors: { temperature: [TEMP], tau: 0 },
+      control: { period: 10 },
+      devices: [
+        Object.assign(
+          {
+            type: 'floor',
+            id: 'floor',
+            title: 'Пол',
+            valve: { topics: [FV, FV2] },
+            floorSensors: [{ control: FL1 }, { control: FL2 }],
+            minFloor: 24,
+            maxFloor: 29
+          },
+          floorExtra || {}
+        )
+      ]
+    },
+    extra || {}
+  );
+}
+/** Пол меняется плавно: шагами не больше 1 К за такт. */
+function setF(env, v) {
+  for (const t of [FL1, FL2]) {
+    let cur = env.get(t);
+    while (Math.abs(v - cur) > 1) {
+      cur = Math.round((cur + Math.sign(v - cur)) * 100) / 100;
+      env.set(t, cur);
+      env.advance(10 * 1000);
+    }
+    env.set(t, v);
+  }
+}
+{
+  const env = makeEnv();
+  env.control(FL1, 25);
+  env.control(FL2, 25);
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(floorZone({ control: { period: 10, band: 2, ti: 0 } }));
+  setT(env, 18);
+  env.advance(20 * 1000);
+  check('холодно (потребность 100 %): цель пола = максимум 29', env.get('room/floor_target') === 29, env.get('room/floor_target'));
+  check('пол 25 < цели — петли открыты (все реле группы)', env.get(FV) === true && env.get(FV2) === true);
+  check('на карточке — средняя по датчикам пола', env.get('room/floor_floor') === 25, env.get('room/floor_floor'));
+  check('в состоянии — пол и цель', /пол 25 °C, цель 29 °C/.test(env.get('room/floor_status')), env.get('room/floor_status'));
+  env.set(FL1, 25.5);
+  env.set(FL2, 25.3);
+  env.advance(300 * 1000); // датчики пола сглажены (60 с)
+  check('среднее двух датчиков пола', env.get('room/floor_floor') === 25.4, env.get('room/floor_floor'));
+  setF(env, 28.5);
+  env.advance(20 * 1000);
+  check('у максимума, но ниже цели + 0,25 — открыто', env.get(FV) === true);
+  env.set(FL1, 29.6);
+  env.set(FL2, 29.6);
+  let closedAt = null;
+  for (let i = 0; i < 60 && closedAt === null; i++) {
+    env.advance(10 * 1000);
+    if (env.get(FV) === false) closedAt = env.now;
+  }
+  check('пол выше максимума — закрыто, как только сглаженное значение дошло до 29', closedAt !== null && env.get('room/floor_floor') >= 29, env.get('room/floor_floor'));
+  check('в состоянии — ограничение', /ограничение 29/.test(env.get('room/floor_status')), env.get('room/floor_status'));
+  // Открыть петли и сразу перегреть пол: закрыться обязано раньше,
+  // чем истечёт минимальное время открытия (180 с)
+  env.set(FL1, 28.5);
+  env.set(FL2, 28.5);
+  let openAt = null;
+  for (let i = 0; i < 60 && openAt === null; i++) {
+    env.advance(10 * 1000);
+    if (env.get(FV) === true) openAt = env.now;
+  }
+  env.set(FL1, 30.5);
+  env.set(FL2, 30.5);
+  let closed2 = null;
+  for (let i = 0; i < 30 && closed2 === null; i++) {
+    env.advance(10 * 1000);
+    if (env.get(FV) === false) closed2 = env.now;
+  }
+  check('перегрев закрывает без выдержки минимального времени открытия', openAt !== null && closed2 !== null && closed2 - openAt < 180000, openAt && closed2 && (closed2 - openAt) / 1000 + ' с');
+  setF(env, 25);
+
+  // Помещению тепло — пол не ниже минимума
+  setT(env, 23);
+  env.advance(200 * 1000);
+  check('тепло (потребность 0): цель = минимум 24', env.get('room/floor_target') === 24, env.get('room/floor_target'));
+  setF(env, 24.5);
+  env.advance(200 * 1000);
+  check('пол 24,5 — петли закрыты', env.get(FV) === false);
+  setF(env, 23.6);
+  env.advance(200 * 1000);
+  check('пол 23,6 ниже минимума — петли открыты, хотя помещению тепло', env.get(FV) === true && env.get('room/demand') === 0);
+  env.set(FL1, 24.2);
+  env.set(FL2, 24.2);
+  env.advance(200 * 1000);
+  check('гистерезис: при 24,2 ещё греет', env.get(FV) === true);
+  env.set(FL1, 24.4);
+  env.set(FL2, 24.4);
+  env.advance(200 * 1000);
+  check('пол 24,4 > минимума + 0,25 — закрыто', env.get(FV) === false);
+
+  // Половина потребности — цель посередине
+  setT(env, 21.5); // e 0.5 / band 2 = 25 %
+  env.advance(20 * 1000);
+  check('потребность 25 % -> цель 24 + 5·0,25 = 25,25', env.get('room/floor_target') === 25.3, env.get('room/floor_target'));
+
+  // Окно / выключение — закрыть сразу, минимум не держать
+  setF(env, 23);
+  env.advance(200 * 1000);
+  check('перед выключением петли открыты', env.get(FV) === true);
+  env.set('room/enabled', false);
+  env.advance(2000);
+  check('зона выключена — петли закрыты сразу, минимум не держится', env.get(FV) === false);
+}
+{
+  const env = makeEnv();
+  env.control(FL1, 25);
+  env.control(FL2, 25);
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(floorZone({ control: { period: 10, band: 2, ti: 0 } }, { minFloor: 0 }));
+  setT(env, 23);
+  env.advance(20 * 1000);
+  check('минимум не задан — низ цели = уставка помещения 22', env.get('room/floor_target') === 22, env.get('room/floor_target'));
+  env.set('room/setpoint', 21);
+  env.advance(20 * 1000);
+  check('уставку сменили — низ цели за ней', env.get('room/floor_target') === 21, env.get('room/floor_target'));
+}
+{
+  const env = makeEnv();
+  env.control(FL1, 25);
+  env.control(FL2, 25);
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(floorZone({ control: { period: 10, band: 2, ti: 0 } }, { minFloor: 27, maxFloor: 27 }));
+  setT(env, 18);
+  env.advance(20 * 1000);
+  const t1 = env.get('room/floor_target');
+  setT(env, 25);
+  env.advance(20 * 1000);
+  check('минимум = максимум: пол держит 27 при любой температуре помещения', t1 === 27 && env.get('room/floor_target') === 27, t1 + ' / ' + env.get('room/floor_target'));
+}
+{
+  const env = makeEnv();
+  env.control(FL1, 25);
+  env.control(FL2, 25);
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(floorZone({ control: { period: 10, band: 2, ti: 0 } }));
+  setT(env, 18);
+  env.advance(20 * 1000);
+  env.setError(FL2, 'r');
+  env.advance(40 * 1000);
+  check('отказ одного датчика пола — работает по второму', env.get('room/floor_floor') === 25 && env.get(FV) === true);
+  check('предупреждение с адресом датчика', /floor2/.test(env.get('room/alarm_text')), env.get('room/alarm_text'));
+  env.setError(FL1, 'r');
+  env.advance(40 * 1000);
+  check('отказ всех датчиков пола — ШИМ по помещению', /ШИМ по помещению/.test(env.get('room/floor_status')), env.get('room/floor_status'));
+  check('при потребности 100 % петли открыты', env.get(FV) === true);
+  check('предупреждение: ограничение пола не работает', /ограничение пола не работает/.test(env.get('room/alarm_text')), env.get('room/alarm_text'));
+  env.setError(FL1, '');
+  env.setError(FL2, '');
+  env.advance(40 * 1000);
+  check('датчики вернулись — снова каскад', /цель/.test(env.get('room/floor_status')) && !env.get('room/alarm'), env.get('room/floor_status') + ' | ' + env.get('room/alarm_text'));
+}
+{
+  // Пол без датчиков: ШИМ по потребности помещения, цикл 20 мин
+  const env = makeEnv();
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(floorZone({}, { floorSensors: [] }));
+  env.set('room/mode', 1);
+  env.set('room/manual_demand', 50);
+  env.advance(1000);
+  let on = 0;
+  for (let i = 0; i < 240; i++) {
+    env.advance(10 * 1000);
+    if (env.get(FV)) on++;
+  }
+  check('без датчика пола: ШИМ 50 % — открыт ~половину времени', Math.abs(on / 240 - 0.5) < 0.05, Math.round((100 * on) / 240) + ' %');
+  check('без датчика пола контролов пола на карточке нет', !('floor_floor' in env.devices.room.cells) && !('floor_target' in env.devices.room.cells));
+}
+
+/* ================================================================== */
+console.log('\n=== 14. Пол + конвектор: доли потребности ===');
+function mixedZone(conv) {
+  const z = floorZone({ control: { period: 10, band: 2, ti: 0 } });
+  z.devices.push(
+    Object.assign({ type: 'convector', id: 'conv', title: 'Конвектор', valve: { topics: [VALVE] }, fan: { type: 'relays', speeds: [S1, S2, S3], delay: 0 } }, conv || {})
+  );
+  return z;
+}
+{
+  const env = makeEnv();
+  env.control(FL1, 25);
+  env.control(FL2, 25);
+  env.control(TEMP, 21.4); // 30 % — конвектор с самого начала не нужен
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(mixedZone());
+  const z = ZONE.get('room');
+  check('авто: пол 0–70 %, конвектор 50–100 %', JSON.stringify(z.devices.map((d) => d.window)) === '[[0,70],[50,100]]', JSON.stringify(z.devices.map((d) => d.window)));
+  setT(env, 21.4); // 30 %
+  env.advance(60 * 1000);
+  check('потребность 30 %: пол греет, конвектор закрыт', env.get(FV) === true && env.get(VALVE) === false);
+  check('цель пола по доле 30/70', env.get('room/floor_target') === 26.1, env.get('room/floor_target'));
+  setT(env, 20.7); // 65 % -> конвектору 30 %
+  env.advance(60 * 1000);
+  check('потребность 65 %: конвектор вступил (клапан, 1-я скорость)', env.get(VALVE) === true && speed(env) === 1, speed(env));
+  setT(env, 20); // 100 %
+  env.advance(80 * 1000);
+  check('потребность 100 %: пол на максимум, конвектор на 3-ю скорость', env.get('room/floor_target') === 29 && speed(env) === 3, env.get('room/floor_target') + ' / ' + speed(env));
+  setT(env, 21.2); // 40 % -> конвектору 0
+  env.advance(200 * 1000);
+  check('потребность 40 %: конвектор снова закрыт, пол работает', env.get(VALVE) === false && speed(env) === 0);
+}
+{
+  const env = makeEnv();
+  env.control(FL1, 25);
+  env.control(FL2, 25);
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(mixedZone({ demandFrom: 0, demandTo: 100 }));
+  check('явные доли сохраняются', JSON.stringify(ZONE.get('room').devices[1].window) === '[0,100]');
+  setT(env, 21.4); // 30 %
+  env.advance(60 * 1000);
+  check('конвектор 0–100: при 30 % клапан открыт', env.get(VALVE) === true);
+}
+{
+  const env = makeEnv();
+  const ZONE = env.require('wbclim-zone');
+  const z1 = relaysZone();
+  z1.devices[0].role = 'boost';
+  ZONE.create(z1);
+  check('роль «догрев» у единственного конвектора — 50–100', JSON.stringify(ZONE.get('room').devices[0].window) === '[50,100]');
+  const z2 = mixedZone({ role: 'all', demandFrom: 0, demandTo: 0 });
+  z2.id = 'room2';
+  ZONE.create(z2);
+  check('роль «всегда» игнорирует числа из формы', JSON.stringify(ZONE.get('room2').devices[1].window) === '[0,100]');
+  const z3 = mixedZone({ role: 'auto', demandFrom: 0, demandTo: 0 });
+  z3.id = 'room3';
+  check('роль «авто» с нулями из формы — не ошибка', ZONE.checkZones([z3]).room3.length === 0, JSON.stringify(ZONE.checkZones([z3]).room3));
+  ZONE.create(z3);
+  check('роль «авто» с нулями из формы — 50–100', JSON.stringify(ZONE.get('room3').devices[1].window) === '[50,100]');
+  const z4 = mixedZone({ role: 'turbo' });
+  z4.id = 'room4';
+  check('неизвестная роль — ошибка настройки', /неизвестная роль/.test(ZONE.checkZones([z4]).room4.join()));
+}
+{
+  const env = makeEnv();
+  const ZONE = env.require('wbclim-zone');
+  const conv = relaysZone();
+  check('один конвектор — доля 0–100', JSON.stringify(ZONE.checkZones([conv]).room) === '[]');
+  const bad = mixedZone({ demandFrom: 80, demandTo: 60 });
+  const p = ZONE.checkZones([bad]).room;
+  check('доля «от» ≥ «до» — ошибка настройки', p.some((x) => /доля потребности 80…60/.test(x)), JSON.stringify(p));
+  const bad2 = floorZone({}, { minFloor: 30, maxFloor: 29 });
+  const p2 = ZONE.checkZones([bad2]).room;
+  check('минимум пола выше максимума — ошибка настройки', p2.some((x) => /минимум пола 30 °C выше максимума 29 °C/.test(x)), JSON.stringify(p2));
+  const bad3 = floorZone({}, { valve: { topics: [] } });
+  check('пол без термоголовок — ошибка настройки', ZONE.checkZones([bad3]).room.some((x) => /термоголовки петель/.test(x)));
+  const dup = mixedZone({ valve: { topics: [FV] } });
+  check('реле петли занято конвектором — ошибка настройки', ZONE.checkZones([dup]).room.some((x) => /уже используется/.test(x)));
+}
+{
+  // Защита от замерзания доходит до всех исполнителей
+  const env = makeEnv();
+  env.control(FL1, 8);
+  env.control(FL2, 8);
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(Object.assign(mixedZone(), { defaultEnabled: false }));
+  setT(env, 6);
+  env.advance(60 * 1000);
+  check('замерзание: открыты и пол, и конвектор', env.get(FV) === true && env.get(VALVE) === true);
+}
+
 R.done('zone.js');

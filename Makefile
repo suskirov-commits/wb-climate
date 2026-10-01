@@ -3,6 +3,7 @@
 #   make test        прогнать все автотесты
 #   make sim         стенд: зона с конвектором на модели помещения
 #   make build       пересобрать однофайловую версию dist/
+#   make schema      пересобрать форму настроек из tools/make-schema.js
 #   make deb         собрать .deb (нужен dpkg-deb: Linux или CI)
 #   make deploy HOST=192.168.1.50    залить файлы по ssh и перезапустить wb-rules
 
@@ -23,12 +24,12 @@ BUILD    := build/deb
 HOST     ?=
 SSHOPTS  ?= -o StrictHostKeyChecking=accept-new
 
-.PHONY: all test sim build deb clean deploy help
+.PHONY: all test sim build schema deb clean deploy help
 
 all: test
 
 help:
-	@sed -n '3,8p' Makefile | sed 's/^# \{0,1\}//'
+	@sed -n '3,9p' Makefile | sed 's/^# \{0,1\}//'
 
 test:
 	@node test/zone.js
@@ -40,6 +41,9 @@ sim:
 
 build:
 	@node tools/make-bundle.js
+
+schema:
+	@node tools/make-schema.js
 
 # ------------------------------------------------------------------ deb
 #
