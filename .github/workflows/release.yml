@@ -1,0 +1,88 @@
+name: release
+
+# Тег vX.Y.Z — готовый .deb в Releases. Пакет не собирается, пока не
+# прошли автотесты: битую версию физически невозможно выложить.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main, master]
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Установить зависимости для тестов
+        run: npm install --no-audit --no-fund
+
+      # bundle.js заодно проверяет синтаксис ES5 всех модулей и то, что
+      # dist/ собран из текущих исходников
+      - name: Автотесты
+        run: |
+          node test/zone.js
+          node test/bundle.js
+          node test/schema.js
+
+      - name: dist/ соответствует исходникам
+        run: |
+          node tools/make-bundle.js
+          git diff --exit-code dist/ || {
+            echo "::error::dist/wb-climate.js устарел — выполните 'make build' и закоммитьте"
+            exit 1
+          }
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Собрать .deb
+        run: |
+          make deb
+          mv wb-climate_*_all.deb wb-climate_all.deb
+
+      - name: Проверить пакет
+        run: |
+          dpkg-deb -I wb-climate_all.deb
+          dpkg-deb -c wb-climate_all.deb
+          dpkg-deb -I wb-climate_all.deb conffiles | grep -q '/etc/wb-climate.conf'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: wb-climate_all.deb
+
+      - name: Опубликовать релиз
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wb-climate_all.deb
+          generate_release_notes: true
+          body: |
+            ## Установка этой версии на контроллер
+
+            ```sh
+            U=https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
+            wget -O /tmp/wbclim.deb $U/wb-climate_all.deb && dpkg -i --force-confold /tmp/wbclim.deb
+            cat /usr/share/wb-climate/VERSION
+            ```
+
+            Пакет подходит для Wiren Board 6, 7 и 8 (архитектура `all`).
+            Конфигурация `/etc/wb-climate.conf` объявлена в `conffiles` —
+            настройки объекта при обновлении не затираются.
+
+            После установки: веб-интерфейс → **Настройки** → **«Климат-контроль»**.

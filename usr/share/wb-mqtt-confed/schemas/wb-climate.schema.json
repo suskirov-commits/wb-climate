@@ -1,0 +1,1441 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "type": "object",
+  "title": "climateTitle",
+  "description": "climateDescription",
+  "configFile": {
+    "path": "/etc/wb-climate.conf",
+    "service": "wb-rules"
+  },
+  "definitions": {
+    "fanNone": {
+      "type": "object",
+      "title": "fanNoneTitle",
+      "description": "fanNoneDescription",
+      "options": {
+        "disable_collapse": true,
+        "disable_edit_json": true
+      },
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "none"
+          ],
+          "default": "none",
+          "options": {
+            "hidden": true
+          }
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "fanRelays": {
+      "type": "object",
+      "title": "fanRelaysTitle",
+      "description": "fanRelaysDescription",
+      "_format": "grid",
+      "options": {
+        "disable_collapse": true,
+        "disable_edit_json": true
+      },
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "relays"
+          ],
+          "default": "relays",
+          "options": {
+            "hidden": true
+          }
+        },
+        "speeds": {
+          "type": "array",
+          "title": "fanSpeedsTitle",
+          "_format": "table",
+          "propertyOrder": 1,
+          "items": {
+            "type": "object",
+            "title": "topicRowTitle",
+            "properties": {
+              "control": {
+                "type": "string",
+                "title": "topicColTitle",
+                "pattern": "^$|^[^/+#]+/[^/+#]+$",
+                "minLength": 0,
+                "_format": "wb-autocomplete",
+                "default": "",
+                "options": {
+                  "patternmessage": "errMqttTopic",
+                  "inputAttributes": {
+                    "placeholder": "phMqttTopic"
+                  },
+                  "wb": {
+                    "data": "devices"
+                  }
+                }
+              }
+            },
+            "required": [
+              "control"
+            ]
+          },
+          "options": {
+            "disable_array_reorder": true,
+            "disable_collapse": true,
+            "grid_columns": 12
+          },
+          "description": "fanSpeedsDescription",
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "relayMode": {
+          "type": "string",
+          "title": "fanRelayModeTitle",
+          "enum": [
+            "exclusive",
+            "cumulative"
+          ],
+          "default": "exclusive",
+          "propertyOrder": 2,
+          "options": {
+            "enum_titles": [
+              "fanRelayModeExclusive",
+              "fanRelayModeCumulative"
+            ],
+            "grid_columns": 6
+          }
+        },
+        "interlock": {
+          "type": "integer",
+          "title": "fanInterlockTitle",
+          "minimum": 0,
+          "maximum": 5000,
+          "default": 500,
+          "propertyOrder": 3,
+          "options": {
+            "grid_columns": 6
+          },
+          "description": "fanInterlockDescription"
+        },
+        "enable": {
+          "type": "string",
+          "title": "fanEnableTitle",
+          "pattern": "^$|^[^/+#]+/[^/+#]+$",
+          "minLength": 0,
+          "_format": "wb-autocomplete",
+          "default": "",
+          "propertyOrder": 15,
+          "options": {
+            "patternmessage": "errMqttTopic",
+            "inputAttributes": {
+              "placeholder": "phMqttTopic"
+            },
+            "wb": {
+              "data": "devices"
+            },
+            "grid_columns": 6
+          },
+          "description": "fanEnableDescription"
+        },
+        "start": {
+          "type": "number",
+          "title": "fanStartTitle",
+          "minimum": 0,
+          "maximum": 95,
+          "default": 20,
+          "propertyOrder": 20,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanStartDescription"
+        },
+        "hyst": {
+          "type": "number",
+          "title": "fanHystTitle",
+          "minimum": 0,
+          "maximum": 30,
+          "default": 10,
+          "propertyOrder": 21,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanHystDescription"
+        },
+        "minStepTime": {
+          "type": "integer",
+          "title": "fanStepTitle",
+          "minimum": 0,
+          "maximum": 600,
+          "default": 60,
+          "propertyOrder": 22,
+          "options": {
+            "grid_columns": 4
+          }
+        },
+        "delay": {
+          "type": "integer",
+          "title": "fanDelayTitle",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 180,
+          "propertyOrder": 23,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanDelayDescription"
+        },
+        "minWater": {
+          "type": "number",
+          "title": "fanMinWaterTitle",
+          "minimum": 15,
+          "maximum": 60,
+          "default": 30,
+          "propertyOrder": 24,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanMinWaterDescription"
+        }
+      },
+      "required": [
+        "type",
+        "speeds"
+      ]
+    },
+    "fanAnalog": {
+      "type": "object",
+      "title": "fanAnalogTitle",
+      "description": "fanAnalogDescription",
+      "_format": "grid",
+      "options": {
+        "disable_collapse": true,
+        "disable_edit_json": true
+      },
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "analog"
+          ],
+          "default": "analog",
+          "options": {
+            "hidden": true
+          }
+        },
+        "out": {
+          "type": "string",
+          "title": "fanOutTitle",
+          "pattern": "^$|^[^/+#]+/[^/+#]+$",
+          "minLength": 0,
+          "_format": "wb-autocomplete",
+          "default": "",
+          "propertyOrder": 1,
+          "options": {
+            "patternmessage": "errMqttTopic",
+            "inputAttributes": {
+              "placeholder": "phMqttTopic"
+            },
+            "wb": {
+              "data": "devices"
+            },
+            "grid_columns": 6
+          }
+        },
+        "valueMin": {
+          "type": "number",
+          "title": "fanValueMinTitle",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 0,
+          "propertyOrder": 2,
+          "options": {
+            "grid_columns": 3
+          },
+          "description": "fanValueMinDescription"
+        },
+        "valueMax": {
+          "type": "number",
+          "title": "fanValueMaxTitle",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 10000,
+          "propertyOrder": 3,
+          "options": {
+            "grid_columns": 3
+          }
+        },
+        "enable": {
+          "type": "string",
+          "title": "fanEnableTitle",
+          "pattern": "^$|^[^/+#]+/[^/+#]+$",
+          "minLength": 0,
+          "_format": "wb-autocomplete",
+          "default": "",
+          "propertyOrder": 15,
+          "options": {
+            "patternmessage": "errMqttTopic",
+            "inputAttributes": {
+              "placeholder": "phMqttTopic"
+            },
+            "wb": {
+              "data": "devices"
+            },
+            "grid_columns": 6
+          },
+          "description": "fanEnableDescription"
+        },
+        "start": {
+          "type": "number",
+          "title": "fanStartTitle",
+          "minimum": 0,
+          "maximum": 95,
+          "default": 20,
+          "propertyOrder": 20,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanStartDescription"
+        },
+        "min": {
+          "type": "number",
+          "title": "fanMinTitle",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 20,
+          "propertyOrder": 25,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanMinDescription"
+        },
+        "max": {
+          "type": "number",
+          "title": "fanMaxTitle",
+          "minimum": 10,
+          "maximum": 100,
+          "default": 100,
+          "propertyOrder": 26,
+          "options": {
+            "grid_columns": 4
+          }
+        },
+        "hyst": {
+          "type": "number",
+          "title": "fanHystTitle",
+          "minimum": 0,
+          "maximum": 30,
+          "default": 10,
+          "propertyOrder": 21,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanHystDescription"
+        },
+        "delay": {
+          "type": "integer",
+          "title": "fanDelayTitle",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 180,
+          "propertyOrder": 23,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanDelayDescription"
+        },
+        "minWater": {
+          "type": "number",
+          "title": "fanMinWaterTitle",
+          "minimum": 15,
+          "maximum": 60,
+          "default": 30,
+          "propertyOrder": 24,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanMinWaterDescription"
+        }
+      },
+      "required": [
+        "type",
+        "out"
+      ]
+    },
+    "fanModbus": {
+      "type": "object",
+      "title": "fanModbusTitle",
+      "description": "fanModbusDescription",
+      "_format": "grid",
+      "options": {
+        "disable_collapse": true,
+        "disable_edit_json": true
+      },
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "modbus"
+          ],
+          "default": "modbus",
+          "options": {
+            "hidden": true
+          }
+        },
+        "out": {
+          "type": "string",
+          "title": "fanModbusOutTitle",
+          "pattern": "^$|^[^/+#]+/[^/+#]+$",
+          "minLength": 0,
+          "_format": "wb-autocomplete",
+          "default": "",
+          "propertyOrder": 1,
+          "options": {
+            "patternmessage": "errMqttTopic",
+            "inputAttributes": {
+              "placeholder": "phMqttTopic"
+            },
+            "wb": {
+              "data": "devices"
+            },
+            "grid_columns": 6
+          }
+        },
+        "steps": {
+          "type": "integer",
+          "title": "fanStepsTitle",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 3,
+          "propertyOrder": 2,
+          "options": {
+            "grid_columns": 6
+          },
+          "description": "fanStepsDescription"
+        },
+        "values": {
+          "type": "array",
+          "title": "fanValuesTitle",
+          "description": "fanValuesDescription",
+          "_format": "table",
+          "propertyOrder": 3,
+          "items": {
+            "type": "number",
+            "title": "fanValueColTitle"
+          },
+          "options": {
+            "disable_array_reorder": true,
+            "disable_collapse": true,
+            "grid_columns": 12
+          }
+        },
+        "valueMin": {
+          "type": "number",
+          "title": "fanModbusValueMinTitle",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0,
+          "propertyOrder": 4,
+          "options": {
+            "grid_columns": 3
+          }
+        },
+        "valueMax": {
+          "type": "number",
+          "title": "fanModbusValueMaxTitle",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 100,
+          "propertyOrder": 5,
+          "options": {
+            "grid_columns": 3
+          }
+        },
+        "minChange": {
+          "type": "number",
+          "title": "fanMinChangeTitle",
+          "description": "fanMinChangeDescription",
+          "minimum": 0,
+          "maximum": 50,
+          "default": 5,
+          "propertyOrder": 6,
+          "options": {
+            "grid_columns": 6
+          }
+        },
+        "enable": {
+          "type": "string",
+          "title": "fanEnableTitle",
+          "pattern": "^$|^[^/+#]+/[^/+#]+$",
+          "minLength": 0,
+          "_format": "wb-autocomplete",
+          "default": "",
+          "propertyOrder": 7,
+          "options": {
+            "patternmessage": "errMqttTopic",
+            "inputAttributes": {
+              "placeholder": "phMqttTopic"
+            },
+            "wb": {
+              "data": "devices"
+            },
+            "grid_columns": 6
+          },
+          "description": "fanEnableDescription"
+        },
+        "start": {
+          "type": "number",
+          "title": "fanStartTitle",
+          "minimum": 0,
+          "maximum": 95,
+          "default": 20,
+          "propertyOrder": 8,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanStartDescription"
+        },
+        "min": {
+          "type": "number",
+          "title": "fanMinTitle",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 20,
+          "propertyOrder": 9,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanMinDescription"
+        },
+        "max": {
+          "type": "number",
+          "title": "fanMaxTitle",
+          "minimum": 10,
+          "maximum": 100,
+          "default": 100,
+          "propertyOrder": 10,
+          "options": {
+            "grid_columns": 4
+          }
+        },
+        "hyst": {
+          "type": "number",
+          "title": "fanHystTitle",
+          "minimum": 0,
+          "maximum": 30,
+          "default": 10,
+          "propertyOrder": 11,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanHystDescription"
+        },
+        "minStepTime": {
+          "type": "integer",
+          "title": "fanStepTitle",
+          "minimum": 0,
+          "maximum": 600,
+          "default": 60,
+          "propertyOrder": 12,
+          "options": {
+            "grid_columns": 4
+          }
+        },
+        "delay": {
+          "type": "integer",
+          "title": "fanDelayTitle",
+          "minimum": 0,
+          "maximum": 900,
+          "default": 180,
+          "propertyOrder": 13,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanDelayDescription"
+        },
+        "minWater": {
+          "type": "number",
+          "title": "fanMinWaterTitle",
+          "minimum": 15,
+          "maximum": 60,
+          "default": 30,
+          "propertyOrder": 14,
+          "options": {
+            "grid_columns": 4
+          },
+          "description": "fanMinWaterDescription"
+        }
+      },
+      "required": [
+        "type",
+        "out"
+      ]
+    },
+    "convector": {
+      "type": "object",
+      "title": "convTitle",
+      "headerTemplate": "{{ self.title }}",
+      "_format": "grid",
+      "options": {
+        "disable_edit_json": true,
+        "disable_collapse": false
+      },
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "convector"
+          ],
+          "default": "convector",
+          "options": {
+            "hidden": true
+          }
+        },
+        "id": {
+          "type": "string",
+          "title": "convIdTitle",
+          "description": "convIdDescription",
+          "pattern": "^[a-z0-9_]+$",
+          "minLength": 1,
+          "maxLength": 20,
+          "default": "conv1",
+          "propertyOrder": 1,
+          "options": {
+            "patternmessage": "errId",
+            "grid_columns": 4
+          }
+        },
+        "title": {
+          "type": "string",
+          "title": "convNameTitle",
+          "default": "Конвектор 1",
+          "propertyOrder": 2,
+          "options": {
+            "grid_columns": 8
+          }
+        },
+        "valve": {
+          "type": "object",
+          "title": "valveTitle",
+          "_format": "grid",
+          "propertyOrder": 3,
+          "options": {
+            "disable_edit_json": true,
+            "disable_properties": true,
+            "disable_collapse": false
+          },
+          "properties": {
+            "topics": {
+              "type": "array",
+              "title": "valveTopicsTitle",
+              "_format": "table",
+              "propertyOrder": 1,
+              "items": {
+                "type": "object",
+                "title": "topicRowTitle",
+                "properties": {
+                  "control": {
+                    "type": "string",
+                    "title": "topicColTitle",
+                    "pattern": "^$|^[^/+#]+/[^/+#]+$",
+                    "minLength": 0,
+                    "_format": "wb-autocomplete",
+                    "default": "",
+                    "options": {
+                      "patternmessage": "errMqttTopic",
+                      "inputAttributes": {
+                        "placeholder": "phMqttTopic"
+                      },
+                      "wb": {
+                        "data": "devices"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "control"
+                ]
+              },
+              "options": {
+                "disable_array_reorder": true,
+                "disable_collapse": true,
+                "grid_columns": 12
+              },
+              "description": "valveTopicsDescription",
+              "minItems": 1
+            },
+            "normallyOpen": {
+              "type": "boolean",
+              "title": "valveNoTitle",
+              "default": false,
+              "_format": "checkbox",
+              "propertyOrder": 2,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "valveNoDescription"
+            },
+            "mode": {
+              "type": "string",
+              "title": "valveModeTitle",
+              "enum": [
+                "onoff",
+                "pwm"
+              ],
+              "default": "onoff",
+              "propertyOrder": 3,
+              "options": {
+                "enum_titles": [
+                  "valveModeOnoff",
+                  "valveModePwm"
+                ],
+                "grid_columns": 8
+              }
+            },
+            "minOn": {
+              "type": "integer",
+              "title": "valveMinOnTitle",
+              "minimum": 0,
+              "maximum": 1800,
+              "default": 120,
+              "propertyOrder": 4,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "valveMinOnDescription"
+            },
+            "minOff": {
+              "type": "integer",
+              "title": "valveMinOffTitle",
+              "minimum": 0,
+              "maximum": 1800,
+              "default": 120,
+              "propertyOrder": 5,
+              "options": {
+                "grid_columns": 4
+              }
+            },
+            "openTime": {
+              "type": "integer",
+              "title": "valveOpenTimeTitle",
+              "minimum": 30,
+              "maximum": 600,
+              "default": 180,
+              "propertyOrder": 6,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "valveOpenTimeDescription"
+            },
+            "cycle": {
+              "type": "integer",
+              "title": "valveCycleTitle",
+              "minimum": 300,
+              "maximum": 3600,
+              "default": 900,
+              "propertyOrder": 7,
+              "options": {
+                "grid_columns": 4,
+                "dependencies": {
+                  "mode": "pwm"
+                }
+              }
+            }
+          },
+          "description": "valveDescription",
+          "required": [
+            "topics"
+          ]
+        },
+        "fan": {
+          "title": "fanTitle",
+          "description": "fanDescription",
+          "propertyOrder": 4,
+          "oneOf": [
+            {
+              "$ref": "#/definitions/fanRelays"
+            },
+            {
+              "$ref": "#/definitions/fanAnalog"
+            },
+            {
+              "$ref": "#/definitions/fanModbus"
+            },
+            {
+              "$ref": "#/definitions/fanNone"
+            }
+          ],
+          "options": {
+            "keep_oneof_values": false,
+            "disable_collapse": true,
+            "disable_edit_json": true
+          }
+        },
+        "waterSensor": {
+          "type": "string",
+          "title": "convWaterTitle",
+          "pattern": "^$|^[^/+#]+/[^/+#]+$",
+          "minLength": 0,
+          "_format": "wb-autocomplete",
+          "default": "",
+          "propertyOrder": 5,
+          "options": {
+            "patternmessage": "errMqttTopic",
+            "inputAttributes": {
+              "placeholder": "phMqttTopic"
+            },
+            "wb": {
+              "data": "devices"
+            },
+            "grid_columns": 12
+          },
+          "description": "convWaterDescription"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "valve",
+        "fan"
+      ]
+    },
+    "zone": {
+      "type": "object",
+      "title": "zoneTitle",
+      "headerTemplate": "{{ self.title }}",
+      "_format": "grid",
+      "options": {
+        "disable_edit_json": true
+      },
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "zoneIdTitle",
+          "description": "zoneIdDescription",
+          "pattern": "^[0-9a-zA-Z_]+$",
+          "minLength": 1,
+          "maxLength": 40,
+          "default": "climate_room1",
+          "propertyOrder": 1,
+          "options": {
+            "patternmessage": "errId",
+            "grid_columns": 4
+          }
+        },
+        "title": {
+          "type": "string",
+          "title": "zoneNameTitle",
+          "default": "Гостиная",
+          "propertyOrder": 2,
+          "options": {
+            "grid_columns": 4
+          }
+        },
+        "defaultSetpoint": {
+          "type": "number",
+          "title": "zoneSetpointTitle",
+          "minimum": 5,
+          "maximum": 35,
+          "default": 22,
+          "propertyOrder": 3,
+          "options": {
+            "grid_columns": 2
+          },
+          "description": "zoneSetpointDescription"
+        },
+        "defaultEnabled": {
+          "type": "boolean",
+          "title": "zoneEnabledTitle",
+          "default": true,
+          "_format": "checkbox",
+          "propertyOrder": 4,
+          "options": {
+            "grid_columns": 2
+          }
+        },
+        "sensors": {
+          "type": "object",
+          "title": "sensorsTitle",
+          "_format": "grid",
+          "propertyOrder": 10,
+          "options": {
+            "disable_edit_json": true,
+            "disable_properties": true,
+            "disable_collapse": false
+          },
+          "properties": {
+            "temperature": {
+              "type": "array",
+              "title": "senTempTitle",
+              "_format": "table",
+              "propertyOrder": 1,
+              "items": {
+                "type": "object",
+                "title": "topicRowTitle",
+                "properties": {
+                  "control": {
+                    "type": "string",
+                    "title": "topicColTitle",
+                    "pattern": "^$|^[^/+#]+/[^/+#]+$",
+                    "minLength": 0,
+                    "_format": "wb-autocomplete",
+                    "default": "",
+                    "options": {
+                      "patternmessage": "errMqttTopic",
+                      "inputAttributes": {
+                        "placeholder": "phMqttTopic"
+                      },
+                      "wb": {
+                        "data": "devices"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "control"
+                ]
+              },
+              "options": {
+                "disable_array_reorder": true,
+                "disable_collapse": true,
+                "grid_columns": 12
+              },
+              "description": "senTempDescription",
+              "minItems": 1
+            },
+            "humidity": {
+              "type": "array",
+              "title": "senHumTitle",
+              "_format": "table",
+              "propertyOrder": 2,
+              "items": {
+                "type": "object",
+                "title": "topicRowTitle",
+                "properties": {
+                  "control": {
+                    "type": "string",
+                    "title": "topicColTitle",
+                    "pattern": "^$|^[^/+#]+/[^/+#]+$",
+                    "minLength": 0,
+                    "_format": "wb-autocomplete",
+                    "default": "",
+                    "options": {
+                      "patternmessage": "errMqttTopic",
+                      "inputAttributes": {
+                        "placeholder": "phMqttTopic"
+                      },
+                      "wb": {
+                        "data": "devices"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "control"
+                ]
+              },
+              "options": {
+                "disable_array_reorder": true,
+                "disable_collapse": true,
+                "grid_columns": 12
+              },
+              "description": "senHumDescription"
+            },
+            "tau": {
+              "type": "number",
+              "title": "senTauTitle",
+              "minimum": 0,
+              "maximum": 600,
+              "default": 30,
+              "propertyOrder": 3,
+              "options": {
+                "grid_columns": 4
+              }
+            }
+          },
+          "description": "sensorsDescription",
+          "required": [
+            "temperature"
+          ]
+        },
+        "window": {
+          "type": "object",
+          "title": "windowTitle",
+          "_format": "grid",
+          "propertyOrder": 20,
+          "options": {
+            "disable_edit_json": true,
+            "disable_properties": true,
+            "disable_collapse": false
+          },
+          "properties": {
+            "topics": {
+              "type": "array",
+              "title": "winTopicsTitle",
+              "_format": "table",
+              "propertyOrder": 1,
+              "items": {
+                "type": "object",
+                "title": "topicRowTitle",
+                "properties": {
+                  "control": {
+                    "type": "string",
+                    "title": "topicColTitle",
+                    "pattern": "^$|^[^/+#]+/[^/+#]+$",
+                    "minLength": 0,
+                    "_format": "wb-autocomplete",
+                    "default": "",
+                    "options": {
+                      "patternmessage": "errMqttTopic",
+                      "inputAttributes": {
+                        "placeholder": "phMqttTopic"
+                      },
+                      "wb": {
+                        "data": "devices"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "control"
+                ]
+              },
+              "options": {
+                "disable_array_reorder": true,
+                "disable_collapse": true,
+                "grid_columns": 12
+              }
+            },
+            "invert": {
+              "type": "boolean",
+              "title": "winInvertTitle",
+              "default": false,
+              "_format": "checkbox",
+              "propertyOrder": 2,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "winInvertDescription"
+            },
+            "delay": {
+              "type": "integer",
+              "title": "winDelayTitle",
+              "minimum": 0,
+              "maximum": 600,
+              "default": 30,
+              "propertyOrder": 3,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "winDelayDescription"
+            }
+          },
+          "description": "windowDescription"
+        },
+        "control": {
+          "type": "object",
+          "title": "controlTitle",
+          "_format": "grid",
+          "propertyOrder": 30,
+          "options": {
+            "disable_edit_json": true,
+            "disable_properties": true,
+            "disable_collapse": false
+          },
+          "properties": {
+            "band": {
+              "type": "number",
+              "title": "ctlBandTitle",
+              "minimum": 0.5,
+              "maximum": 10,
+              "default": 1.5,
+              "propertyOrder": 1,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "ctlBandDescription"
+            },
+            "ti": {
+              "type": "integer",
+              "title": "ctlTiTitle",
+              "minimum": 0,
+              "maximum": 240,
+              "default": 30,
+              "propertyOrder": 2,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "ctlTiDescription"
+            },
+            "period": {
+              "type": "integer",
+              "title": "ctlPeriodTitle",
+              "minimum": 2,
+              "maximum": 60,
+              "default": 10,
+              "propertyOrder": 3,
+              "options": {
+                "grid_columns": 4
+              }
+            },
+            "setpointMin": {
+              "type": "number",
+              "title": "ctlSpMinTitle",
+              "minimum": 5,
+              "maximum": 30,
+              "default": 10,
+              "propertyOrder": 4,
+              "options": {
+                "grid_columns": 4
+              }
+            },
+            "setpointMax": {
+              "type": "number",
+              "title": "ctlSpMaxTitle",
+              "minimum": 15,
+              "maximum": 40,
+              "default": 30,
+              "propertyOrder": 5,
+              "options": {
+                "grid_columns": 4
+              }
+            }
+          },
+          "description": "controlDescription"
+        },
+        "safety": {
+          "type": "object",
+          "title": "safetyTitle",
+          "_format": "grid",
+          "propertyOrder": 40,
+          "options": {
+            "disable_edit_json": true,
+            "disable_properties": true,
+            "disable_collapse": false
+          },
+          "properties": {
+            "frostProtect": {
+              "type": "boolean",
+              "title": "safFrostTitle",
+              "default": true,
+              "_format": "checkbox",
+              "propertyOrder": 1,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "safFrostDescription"
+            },
+            "frostTemp": {
+              "type": "number",
+              "title": "safFrostTempTitle",
+              "minimum": 3,
+              "maximum": 15,
+              "default": 7,
+              "propertyOrder": 2,
+              "options": {
+                "grid_columns": 4
+              }
+            },
+            "failSafeDemand": {
+              "type": "integer",
+              "title": "safFailSafeTitle",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 0,
+              "propertyOrder": 3,
+              "options": {
+                "grid_columns": 4
+              },
+              "description": "safFailSafeDescription"
+            }
+          }
+        },
+        "devices": {
+          "type": "array",
+          "title": "devicesTitle",
+          "description": "devicesDescription",
+          "propertyOrder": 50,
+          "items": {
+            "$ref": "#/definitions/convector"
+          },
+          "options": {
+            "disable_array_reorder": true,
+            "array_controls_top": true
+          }
+        },
+        "debug": {
+          "type": "boolean",
+          "title": "zoneDebugTitle",
+          "default": false,
+          "_format": "checkbox",
+          "propertyOrder": 60,
+          "options": {
+            "grid_columns": 4
+          }
+        }
+      },
+      "required": [
+        "id",
+        "sensors"
+      ]
+    }
+  },
+  "properties": {
+    "zones": {
+      "type": "array",
+      "title": "zonesTitle",
+      "description": "zonesDescription",
+      "propertyOrder": 1,
+      "items": {
+        "$ref": "#/definitions/zone"
+      },
+      "options": {
+        "disable_array_reorder": true,
+        "array_controls_top": true,
+        "wb": {
+          "disable_panel": false
+        }
+      }
+    }
+  },
+  "required": [
+    "zones"
+  ],
+  "translations": {
+    "en": {
+      "errMqttTopic": "Must match the format <device>/<control>",
+      "errId": "Latin letters, digits and underscore only",
+      "phMqttTopic": "Device/Control",
+      "topicRowTitle": "Control",
+      "topicColTitle": "Device/Control",
+      "fanNoneTitle": "No fan (passive convector)",
+      "fanNoneDescription": "Controlled by the thermal actuator only, like underfloor heating",
+      "fanRelaysTitle": "Relays, 1–3 speeds",
+      "fanRelaysDescription": "One relay per speed, slow to fast",
+      "fanSpeedsTitle": "Speed relays (slow → fast) *",
+      "fanSpeedsDescription": "1 to 3 relays",
+      "fanRelayModeTitle": "Relay mode",
+      "fanRelayModeExclusive": "One relay per speed (motor taps)",
+      "fanRelayModeCumulative": "Speed N = relays 1..N",
+      "fanInterlockTitle": "Pause on speed change, ms",
+      "fanInterlockDescription": "Two motor taps must never be on together",
+      "fanEnableTitle": "Fan power relay",
+      "fanEnableDescription": "Optional: switched on while the fan runs",
+      "fanStartTitle": "Fan starts at demand, %",
+      "fanStartDescription": "Below this the convector heats by natural convection only",
+      "fanHystTitle": "Speed-down hysteresis, %",
+      "fanHystDescription": "Fewer relay clicks near a step threshold",
+      "fanStepTitle": "Min time between speed changes, s",
+      "fanDelayTitle": "Fan delay after valve opens, s",
+      "fanDelayDescription": "No cold draft: wait until the heat exchanger warms up",
+      "fanMinWaterTitle": "Min water temperature for fan, °C",
+      "fanMinWaterDescription": "Used instead of the delay when a water sensor is set",
+      "fanAnalogTitle": "Analog 0-10 V",
+      "fanAnalogDescription": "EC fan, WB-MAO4 output in mV",
+      "fanOutTitle": "Analog output *",
+      "fanValueMinTitle": "Value at 0 %",
+      "fanValueMinDescription": "mV; 2000 for 2-10 V fans",
+      "fanValueMaxTitle": "Value at 100 %",
+      "fanMinTitle": "Min running speed, %",
+      "fanMinDescription": "EC motors do not start below ~20 %",
+      "fanMaxTitle": "Max speed, %",
+      "fanModbusTitle": "Modbus (convector controller)",
+      "fanModbusDescription": "Speed is written to a register exposed by the wb-mqtt-serial template",
+      "fanModbusOutTitle": "Speed register *",
+      "fanStepsTitle": "Speed steps (0 = smooth)",
+      "fanStepsDescription": "Steps: writes 0..N. Smooth: value range below",
+      "fanModbusValueMinTitle": "Value at 0 % (smooth)",
+      "fanModbusValueMaxTitle": "Value at 100 % (smooth)",
+      "convTitle": "Convector",
+      "convIdTitle": "id",
+      "convIdDescription": "Prefix of the controls on the room card: conv1_valve, conv1_fan",
+      "convNameTitle": "Name",
+      "valveTopicsTitle": "Relays *",
+      "valveTopicsDescription": "Usually one; several heads on one convector — several",
+      "valveNoTitle": "Normally open (NO)",
+      "valveNoDescription": "Default NC: closed when de-energized",
+      "valveModeTitle": "Mode",
+      "valveModeOnoff": "On/off by demand",
+      "valveModePwm": "PWM (underfloor heating)",
+      "valveMinOnTitle": "Min open time, s",
+      "valveMinOnDescription": "Thermal actuators take 2–4 min to open",
+      "valveMinOffTitle": "Min closed time, s",
+      "valveOpenTimeTitle": "Full opening time, s",
+      "valveOpenTimeDescription": "From the datasheet, typically 180",
+      "valveCycleTitle": "PWM period, s",
+      "valveTitle": "Thermal actuator (valve)",
+      "valveDescription": "Relays of thermoelectric actuators that switch together",
+      "fanTitle": "Fan",
+      "fanDescription": "Pick the fan control type",
+      "convWaterTitle": "Water / heat exchanger sensor",
+      "convWaterDescription": "Optional: fan waits for hot water by this sensor instead of the delay",
+      "zoneTitle": "Room",
+      "zoneIdTitle": "MQTT id",
+      "zoneIdDescription": "Virtual device id, e.g. climate_living",
+      "zoneNameTitle": "Name",
+      "zoneSetpointTitle": "Default setpoint, °C",
+      "zoneSetpointDescription": "Then set on the room card",
+      "zoneEnabledTitle": "Enabled by default",
+      "senTempTitle": "Temperature *",
+      "senTempDescription": "One or more; the average of healthy ones is used",
+      "senHumTitle": "Humidity",
+      "senHumDescription": "Shown on the card for now",
+      "senTauTitle": "Filter time constant, s",
+      "sensorsTitle": "Sensors",
+      "sensorsDescription": "Pick controls from the list of MQTT topics",
+      "winTopicsTitle": "Window contacts",
+      "winInvertTitle": "Open = false",
+      "winInvertDescription": "For NC reed switches",
+      "winDelayTitle": "Delay, s",
+      "winDelayDescription": "Short airing does not stop heating",
+      "windowTitle": "Window",
+      "windowDescription": "Heating pauses while a window is open",
+      "ctlBandTitle": "Proportional band, K",
+      "ctlBandDescription": "Lag behind setpoint for 100 % demand: valve open, fan at full speed",
+      "ctlTiTitle": "Integral time, min",
+      "ctlTiDescription": "Removes steady undershoot in cold weather. 0 = P only",
+      "ctlPeriodTitle": "Control period, s",
+      "ctlSpMinTitle": "Setpoint min, °C",
+      "ctlSpMaxTitle": "Setpoint max, °C",
+      "controlTitle": "Control",
+      "controlDescription": "Fine-tune on the room card",
+      "safFrostTitle": "Frost protection",
+      "safFrostDescription": "Works even when the room is off",
+      "safFrostTempTitle": "Frost temperature, °C",
+      "safFailSafeTitle": "Demand on sensor failure, %",
+      "safFailSafeDescription": "0 = do not heat, alarm on the card",
+      "safetyTitle": "Protection",
+      "devicesTitle": "Convectors",
+      "devicesDescription": "All of them follow the heat demand of the room",
+      "zoneDebugTitle": "Debug logging",
+      "climateTitle": "Climate control",
+      "climateDescription": "Rooms: setpoint, heat demand, convectors (thermal actuators and fans)",
+      "zonesTitle": "Rooms",
+      "zonesDescription": "One entry per room. Each creates its own virtual device.",
+      "fanValuesTitle": "Step values",
+      "fanValuesDescription": "Optional: register value for steps 1..N, e.g. 30, 60, 100. Overrides the step count",
+      "fanValueColTitle": "Value",
+      "fanMinChangeTitle": "Smooth: min change to write, %",
+      "fanMinChangeDescription": "Controller boards may store every write in non-volatile memory"
+    },
+    "ru": {
+      "errMqttTopic": "Формат: <устройство>/<контрол>",
+      "errId": "Только латиница, цифры и _",
+      "phMqttTopic": "Устройство/Контрол",
+      "topicRowTitle": "Контрол",
+      "topicColTitle": "Устройство/Контрол",
+      "fanNoneTitle": "Нет вентилятора (пассивный конвектор)",
+      "fanNoneDescription": "Только термоголовка, как тёплый пол",
+      "fanRelaysTitle": "Реле, 1–3 скорости",
+      "fanRelaysDescription": "По реле на скорость, от медленной к быстрой",
+      "fanSpeedsTitle": "Реле скоростей (от медленной к быстрой) *",
+      "fanSpeedsDescription": "От 1 до 3 реле",
+      "fanRelayModeTitle": "Режим реле",
+      "fanRelayModeExclusive": "Одно реле на скорость (отводы обмотки)",
+      "fanRelayModeCumulative": "Скорость N = реле 1..N",
+      "fanInterlockTitle": "Пауза при смене скорости, мс",
+      "fanInterlockDescription": "Два отвода обмотки не должны быть включены одновременно",
+      "fanEnableTitle": "Реле питания вентилятора",
+      "fanEnableDescription": "Необязательно: включено, пока вентилятор работает",
+      "fanStartTitle": "Вентилятор включается с потребности, %",
+      "fanStartDescription": "Ниже — греет только естественной конвекцией",
+      "fanHystTitle": "Гистерезис снижения скорости, %",
+      "fanHystDescription": "Меньше щелчков реле у порога ступени",
+      "fanStepTitle": "Выдержка между сменами скорости, с",
+      "fanDelayTitle": "Задержка вентилятора после открытия клапана, с",
+      "fanDelayDescription": "Защита от холодного дутья: ждать прогрева теплообменника",
+      "fanMinWaterTitle": "Мин. температура воды для вентилятора, °C",
+      "fanMinWaterDescription": "Вместо задержки, если задан датчик воды",
+      "fanAnalogTitle": "Аналоговый 0-10 В",
+      "fanAnalogDescription": "ЕС-вентилятор, выход WB-MAO4 в мВ",
+      "fanOutTitle": "Аналоговый выход *",
+      "fanValueMinTitle": "Значение при 0 %",
+      "fanValueMinDescription": "мВ; 2000 для вентиляторов 2-10 В",
+      "fanValueMaxTitle": "Значение при 100 %",
+      "fanMinTitle": "Минимальная скорость на ходу, %",
+      "fanMinDescription": "ЕС-двигатели не стартуют ниже ~20 %",
+      "fanMaxTitle": "Максимальная скорость, %",
+      "fanModbusTitle": "Modbus (контроллер конвектора)",
+      "fanModbusDescription": "Скорость пишется в регистр конвектора через шаблон wb-mqtt-serial",
+      "fanModbusOutTitle": "Регистр скорости *",
+      "fanStepsTitle": "Ступеней скорости (0 — плавно)",
+      "fanStepsDescription": "Ступени: пишется 0..N. Плавно: шкала ниже",
+      "fanModbusValueMinTitle": "Значение при 0 % (плавно)",
+      "fanModbusValueMaxTitle": "Значение при 100 % (плавно)",
+      "convTitle": "Конвектор",
+      "convIdTitle": "id",
+      "convIdDescription": "Префикс контролов на карточке помещения: conv1_valve, conv1_fan",
+      "convNameTitle": "Название",
+      "valveTopicsTitle": "Реле *",
+      "valveTopicsDescription": "Обычно одно; несколько головок на одном конвекторе — несколько",
+      "valveNoTitle": "Нормально открытые (NO)",
+      "valveNoDescription": "По умолчанию NC: обесточена — закрыта",
+      "valveModeTitle": "Режим",
+      "valveModeOnoff": "Открыт/закрыт по потребности",
+      "valveModePwm": "ШИМ (как тёплый пол)",
+      "valveMinOnTitle": "Мин. время открытой, с",
+      "valveMinOnDescription": "Термоголовке нужно 2–4 мин, чтобы открыться",
+      "valveMinOffTitle": "Мин. время закрытой, с",
+      "valveOpenTimeTitle": "Время полного открытия, с",
+      "valveOpenTimeDescription": "Из паспорта, обычно 180",
+      "valveCycleTitle": "Период ШИМ, с",
+      "valveTitle": "Термоголовка (клапан)",
+      "valveDescription": "Реле термоголовок, которые переключаются вместе",
+      "fanTitle": "Вентилятор",
+      "fanDescription": "Выберите способ управления вентилятором",
+      "convWaterTitle": "Датчик воды / теплообменника",
+      "convWaterDescription": "Необязательно: вентилятор ждёт горячую воду по нему, а не по таймеру",
+      "zoneTitle": "Помещение",
+      "zoneIdTitle": "MQTT id",
+      "zoneIdDescription": "id виртуального устройства, например climate_living",
+      "zoneNameTitle": "Название",
+      "zoneSetpointTitle": "Уставка по умолчанию, °C",
+      "zoneSetpointDescription": "Дальше задаётся на карточке помещения",
+      "zoneEnabledTitle": "Включено по умолчанию",
+      "senTempTitle": "Температура *",
+      "senTempDescription": "Один или несколько; берётся среднее по исправным",
+      "senHumTitle": "Влажность",
+      "senHumDescription": "Пока только показывается на карточке",
+      "senTauTitle": "Постоянная фильтра, с",
+      "sensorsTitle": "Датчики",
+      "sensorsDescription": "Выберите контролы из списка MQTT-топиков",
+      "winTopicsTitle": "Датчики окна",
+      "winInvertTitle": "Открыто = false",
+      "winInvertDescription": "Для нормально замкнутых герконов",
+      "winDelayTitle": "Задержка, с",
+      "winDelayDescription": "Короткое проветривание не останавливает нагрев",
+      "windowTitle": "Окно",
+      "windowDescription": "Пока окно открыто, отопление на паузе",
+      "ctlBandTitle": "Зона пропорциональности, К",
+      "ctlBandDescription": "Отставание от уставки, при котором потребность 100 %: клапан открыт, вентилятор на максимуме",
+      "ctlTiTitle": "Время интегрирования, мин",
+      "ctlTiDescription": "Снимает недобор в мороз. 0 — чистый П",
+      "ctlPeriodTitle": "Такт, с",
+      "ctlSpMinTitle": "Уставка не ниже, °C",
+      "ctlSpMaxTitle": "Уставка не выше, °C",
+      "controlTitle": "Регулирование",
+      "controlDescription": "Тонкая настройка — на карточке помещения",
+      "safFrostTitle": "Защита от замерзания",
+      "safFrostDescription": "Работает и в выключенном помещении",
+      "safFrostTempTitle": "Температура защиты, °C",
+      "safFailSafeTitle": "Потребность при отказе датчиков, %",
+      "safFailSafeDescription": "0 — не греть, авария на карточке",
+      "safetyTitle": "Защиты",
+      "devicesTitle": "Конвекторы",
+      "devicesDescription": "Все работают от общей потребности помещения в тепле",
+      "zoneDebugTitle": "Отладочный журнал",
+      "climateTitle": "Климат-контроль",
+      "climateDescription": "Помещения: уставка, потребность в тепле, конвекторы (термоголовки и вентиляторы)",
+      "zonesTitle": "Помещения",
+      "zonesDescription": "По записи на помещение. Каждое создаёт своё виртуальное устройство.",
+      "fanValuesTitle": "Значения ступеней",
+      "fanValuesDescription": "Необязательно: значение регистра для ступеней 1..N, например 30, 60, 100. Число ступеней берётся отсюда",
+      "fanValueColTitle": "Значение",
+      "fanMinChangeTitle": "Плавно: не писать изменения меньше, %",
+      "fanMinChangeDescription": "Плата конвектора может сохранять каждую запись в энергонезависимую память"
+    }
+  }
+}

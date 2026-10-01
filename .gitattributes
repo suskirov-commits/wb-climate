@@ -1,0 +1,8 @@
+# Всё, что уезжает на контроллер (Debian, dash), — с концами строк LF:
+# модули wb-rules и DEBIAN/control при CRLF ломаются. eol=lf держит LF
+# и в рабочей копии на Windows, независимо от core.autocrlf.
+* text=auto eol=lf
+
+*.deb binary
+*.png binary
+*.jpg binary
