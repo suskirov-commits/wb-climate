@@ -799,13 +799,73 @@ function setF(env, v) {
   env.advance(20 * 1000);
   check('потребность 25 % -> цель 24 + 5·0,25 = 25,25', env.get('room/floor_target') === 25.3, env.get('room/floor_target'));
 
-  // Окно / выключение — закрыть сразу, минимум не держать
-  setF(env, 23);
+  // Помещение выключено: регулирование по воздуху стоит, но пол не
+  // остывает ниже минимума (решение пользователя 2026-10-02)
+  setT(env, 18); // помещению холодно — цель 29, пол греется
+  setF(env, 26);
   env.advance(200 * 1000);
-  check('перед выключением петли открыты', env.get(FV) === true);
+  check('перед выключением петли открыты (цель 29)', env.get(FV) === true);
   env.set('room/enabled', false);
   env.advance(2000);
-  check('зона выключена — петли закрыты сразу, минимум не держится', env.get(FV) === false);
+  check('выключили при поле 26 > минимума — петли закрыты сразу', env.get(FV) === false);
+  check('на карточке: пауза, держу не ниже 24', /на паузе.*не ниже 24/.test(env.get('room/floor_status')), env.get('room/floor_status'));
+  setF(env, 23.5);
+  env.advance(200 * 1000);
+  check('выключено, пол остыл до 23,5 — петли открыты: минимум держится', env.get(FV) === true);
+  setF(env, 24.4);
+  env.advance(300 * 1000); // датчики пола сглажены (60 с)
+  check('выключено, пол 24,4 — петли закрыты', env.get(FV) === false);
+}
+{
+  // Окно открыто: пол тоже не ниже минимума
+  const env = makeEnv();
+  env.control(FL1, 25);
+  env.control(FL2, 25);
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(floorZone({ control: { period: 10, band: 2, ti: 0 }, window: { topics: [WIN], delay: 0 } }));
+  setT(env, 23); // помещению тепло
+  env.set(WIN, true);
+  env.advance(30 * 1000);
+  check('окно открыто, пол 25 — петли закрыты', env.get(FV) === false && env.get('room/state') === 'Окно открыто');
+  setF(env, 23.5);
+  env.advance(200 * 1000);
+  check('окно открыто, пол остыл до 23,5 — петли открыты', env.get(FV) === true);
+}
+{
+  // «Пол не ниже» на карточке
+  const env = makeEnv();
+  env.control(FL1, 25);
+  env.control(FL2, 25);
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(floorZone({ control: { period: 10, band: 2, ti: 0 } }));
+  check('на карточке «пол не ниже» из настроек — 24', env.get('room/floor_min_floor') === 24, env.get('room/floor_min_floor'));
+  setT(env, 23);
+  env.advance(30 * 1000);
+  check('помещению тепло: цель 24', env.get('room/floor_target') === 24);
+  env.set('room/floor_min_floor', 26);
+  env.advance(2000);
+  check('хозяин поставил 26 на карточке — цель 26 сразу', env.get('room/floor_target') === 26, env.get('room/floor_target'));
+  check('и петли открыты (пол 25 < 26)', env.get(FV) === true);
+  env.set('room/floor_min_floor', 40);
+  env.advance(2000);
+  check('40 > максимума — исправлено на 29', env.get('room/floor_min_floor') === 29 && env.get('room/floor_target') === 29, env.get('room/floor_min_floor'));
+  env.set('room/floor_min_floor', 0);
+  env.set('room/enabled', false);
+  env.advance(2000);
+  setF(env, 20);
+  env.advance(300 * 1000);
+  check('«не ниже» 0 и помещение выключено — пол выключен совсем', env.get(FV) === false);
+  check('в состоянии — пауза', /на паузе/.test(env.get('room/floor_status')), env.get('room/floor_status'));
+}
+{
+  // Без датчиков пола минимум держать не по чему
+  const env = makeEnv();
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create(floorZone({ defaultEnabled: false }, { floorSensors: [] }));
+  setT(env, 20);
+  env.advance(300 * 1000);
+  check('без датчиков пола и выключено — петли закрыты', env.get(FV) === false);
+  check('без датчиков пола контрола «не ниже» нет', !('floor_min_floor' in env.devices.room.cells));
 }
 {
   const env = makeEnv();

@@ -372,7 +372,8 @@ defs.floor = {
       'In the screed, one or more; the average of healthy ones is used. Without them the loops follow the room demand by PWM',
       'В стяжке, один или несколько; берётся среднее по исправным. Без них петли работают ШИМ по потребности помещения', 11),
     minFloor: num('minFloor', 'Floor minimum, °C (0 = room setpoint)', 'Пол не ниже, °C (0 — по уставке помещения)',
-      'The floor is kept at least this warm even when the room needs no heat', 'Пол держится не ниже этой температуры, даже когда помещению тепло не нужно', 0, 35, 0, 12, 4),
+      'Held always: also when the room is off or a window is open. Initial value — then on the room card',
+      'Держится всегда: и при выключенном помещении, и при открытом окне. Начальное значение — дальше на карточке помещения', 0, 35, 0, 12, 4),
     maxFloor: num('maxFloor', 'Floor maximum, °C', 'Пол не выше, °C',
       'EN 1264: 29 living rooms, 33 bathrooms. SP 60.13330: 26 for permanent stay', 'EN 1264: 29 жилые, 33 санузлы. СП 60.13330: 26 для постоянного пребывания', 20, 40, 29, 13, 4),
     floorHyst: num('floorHyst', 'Floor hysteresis, K', 'Гистерезис пола, К', null, null, 0.2, 3, 0.5, 14, 4)

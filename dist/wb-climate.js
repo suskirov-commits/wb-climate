@@ -1259,8 +1259,13 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
      *   цель = низ + (maxFloor − низ) · потребность / 100
      *   низ  = minFloor, если задан, иначе уставка помещения
      *
-     *   - помещению тепло (потребность 0) — пол держится на minFloor и ниже
-     *     не опускается («комфортный пол»);
+     *   - помещению тепло (потребность 0) — петли закрыты, пол остывает, но
+     *     не ниже minFloor («пол не ниже»): ниже — петли открываются;
+     *   - minFloor держится ВСЕГДА: и при выключенном помещении, и при
+     *     открытом окне (решение пользователя 2026-10-02). Сильнее него только
+     *     перегрев. Выключить пол совсем (лето) — «пол не ниже» = 0;
+     *   - minFloor правится на карточке помещения (контрол <id>_min_floor),
+     *     значение из настроек — начальное;
      *   - помещению холодно — цель растёт до maxFloor; выше пол не поднимается
      *     никогда (по умолчанию 29 °C — EN 1264 для жилых помещений;
      *     СП 60.13330 для постоянного пребывания — не выше 26 °C);
@@ -1319,7 +1324,9 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       // Стяжка меняется медленно: 0,1 К/с отсекает мусор с шины с запасом
       this.floors = new U.SensorSet(cfg.floorSensors, { tau: 60, min: -20, max: 70, maxRate: 0.1 });
       this.maxFloor = U.def(cfg.maxFloor, 29);
-      this.minFloor = U.def(cfg.minFloor, 0); // 0 — низ по уставке помещения
+      this.minFloorCfg = U.def(cfg.minFloor, 0); // 0 — низ по уставке помещения
+      this.minFloor = this.minFloorCfg; // действующее: с карточки
+      this.paused = false; // помещение выключено или открыто окно
       this.hyst = U.def(cfg.floorHyst, 0.5);
 
       this.heating = false; // решение внутреннего контура
@@ -1336,6 +1343,12 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       return false;
     };
 
+    /** «Пол не ниже» с карточки помещения; нет контрола — из настроек. */
+    Floor.prototype._min = function (zone) {
+      var v = zone && zone.get ? U.toNum(zone.get('min_floor')) : NaN;
+      return U.clamp(U.isNum(v) ? v : this.minFloorCfg, 0, this.maxFloor);
+    };
+
     /** Целевая температура пола по доле потребности. */
     Floor.prototype._target = function (demand, zone) {
       var hi = this.maxFloor;
@@ -1349,51 +1362,68 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
      * @param {number} demand доля потребности зоны для пола, %
      * @param {number} now    мс
      * @param {number} dt     с с прошлого такта
-     * @param {bool}   force  зона выключена или открыто окно — закрыть сразу
-     * @param {Object} zone   { setpoint } — уставка помещения
+     * @param {bool}   force  зона выключена или открыто окно: регулирование
+     *                        по воздуху стоит, пол держит только minFloor
+     * @param {Object} zone   { setpoint, get(name) } — уставка помещения и
+     *                        чтение своих контролов на карточке
      */
     Floor.prototype.update = function (demand, now, dt, force, zone) {
       var d = U.isNum(demand) ? demand : 0;
       this.floors.poll(dt);
       this.temp = this.floors.get(null);
-
-      if (force) {
-        this.heating = false;
-        this.limit = false;
-        this.target = null;
-        this.valve.update(0, now, true);
-        return;
-      }
+      this.minFloor = this._min(zone);
+      this.paused = !!force;
 
       if (this.temp === null) {
-        // Датчиков пола нет или все отказали — ШИМ по потребности помещения
+        // Датчиков пола нет или все отказали — ШИМ по потребности помещения.
+        // Держать минимум не по чему: на паузе петли закрыты.
         this.mode = 'pwm';
         this.target = null;
         this.heating = false;
         this.limit = false;
-        this.valve.update(d, now, false);
+        this.valve.update(force ? 0 : d, now, !!force);
         return;
       }
 
       this.mode = 'cascade';
-      this.target = this._target(d, zone);
+      if (force) {
+        if (this.minFloor <= 0) {
+          this.target = null;
+          this.heating = false;
+          this.limit = false;
+          this.valve.update(0, now, true);
+          return;
+        }
+        this.target = this.minFloor;
+      } else {
+        this.target = this._target(d, zone);
+      }
       var t = this.temp;
       var half = this.hyst / 2;
       if (!this.heating && t < this.target - half) this.heating = true;
       else if (this.heating && t > this.target + half) this.heating = false;
 
-      // Жёсткий предел — закрыть сразу, без выдержки минимального времени
+      // Жёсткий предел — закрыть сразу, без выдержки минимального времени.
+      // На паузе (выключено, окно) пол выше минимума тоже закрывается сразу.
       this.limit = t >= this.maxFloor;
       if (this.limit) this.heating = false;
-      this.valve.update(this.heating ? 100 : 0, now, this.limit);
+      this.valve.update(this.heating ? 100 : 0, now, this.limit || (force && !this.heating));
     };
 
     Floor.prototype.statusText = function () {
       var s = this.valve.open ? 'петли открыты' : 'петли закрыты';
+      if (this.paused && this.target === null) {
+        var noData = this.mode === 'pwm' && this.floors.configured;
+        return s + ', помещение на паузе' + (noData ? '; нет данных датчиков пола — минимум не держится' : '');
+      }
       if (this.mode === 'pwm' || this.target === null) {
         return this.floors.configured ? s + ', нет данных датчиков пола — ШИМ по помещению' : s + ', ШИМ по помещению';
       }
-      s += ', пол ' + U.round(this.temp, 1) + ' °C, цель ' + U.round(this.target, 1) + ' °C';
+      if (this.paused) {
+        s += ', помещение на паузе — пол ' + U.round(this.temp, 1) + ' °C, держу не ниже ' + U.round(this.target, 1) + ' °C';
+      } else {
+        s += ', пол ' + U.round(this.temp, 1) + ' °C, цель ' + U.round(this.target, 1) + ' °C';
+      }
       if (this.limit) s += ' — ограничение ' + this.maxFloor + ' °C';
       return s;
     };
@@ -1404,6 +1434,8 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       if (this.floors.configured) {
         set('floor', this.temp === null ? 0 : U.round(this.temp, 1));
         set('target', this.target === null ? 0 : U.round(this.target, 1));
+        // значение с карточки вне 0..maxFloor показываем исправленным
+        set('min_floor', U.round(this.minFloor, 1));
       }
       set('status', this.statusText(now));
     };
@@ -1447,6 +1479,20 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
           name: 'target',
           spec: { title: { en: title + ': floor target', ru: title + ': цель для пола' }, type: 'value', value: 0 },
           units: 'deg C'
+        });
+        // «Пол не ниже» правит хозяин на карточке; из настроек — начальное
+        list.push({
+          name: 'min_floor',
+          spec: {
+            title: { en: title + ': floor min (0 = by setpoint)', ru: title + ': пол не ниже (0 — по уставке)' },
+            type: 'value',
+            readonly: false,
+            value: U.def(cfg.minFloor, 0),
+            min: 0,
+            max: 35
+          },
+          units: 'deg C',
+          writable: true
         });
       }
       list.push({
@@ -1529,7 +1575,8 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
      *   - проверка конфигурации до запуска (пустые топики, один выход дважды);
      *   - несколько датчиков температуры — среднее по исправным; отказ части —
      *     авария без остановки; отказ всех — безопасная потребность;
-     *   - открытое окно — отопление на паузе, интегратор заморожен;
+     *   - открытое окно — отопление на паузе, интегратор заморожен
+     *     (тёплый пол и на паузе держит «пол не ниже»);
      *   - защита от замерзания работает и в выключенной зоне;
      *   - ручная потребность — для пусконаладки: проверить клапаны и все
      *     скорости вентиляторов, не трогая уставку.
@@ -1877,6 +1924,14 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       return this.id + '/' + name;
     };
 
+    /** Функция чтения контролов исполнителя: имя без префикса. */
+    Zone.prototype._getter = function (prefix) {
+      var self = this;
+      return function (name) {
+        return dev[self._c(prefix + name)];
+      };
+    };
+
     /** Функция записи контролов исполнителя: имя без префикса. */
     Zone.prototype._setter = function (prefix) {
       var self = this;
@@ -1926,6 +1981,17 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
 
       var watch = [this._c('enabled'), this._c('mode'), this._c('setpoint'), this._c('manual_demand')];
       for (var i = 0; i < this.winTopics.length; i++) watch.push(this.winTopics[i]);
+      // Правка настроек исполнителей на карточке («пол не ниже») — тоже сразу
+      var list = this.cfg.devices || [];
+      for (var j = 0; j < list.length; j++) {
+        var d = list[j] || {};
+        var t = DEVICE_TYPES[d.type || 'convector'];
+        if (!t) continue;
+        var ctls = t.controlsOf(d, deviceTitle(d, j));
+        for (var k = 0; k < ctls.length; k++) {
+          if (ctls[k].writable) watch.push(this._c(deviceId(d, j) + '_' + ctls[k].name));
+        }
+      }
       defineRule(this.id + '_wbclim_kick', {
         whenChanged: watch,
         then: function () {
@@ -2130,9 +2196,9 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       // Выключили зону или открыли окно — клапаны закрываются сразу,
       // без выдержки минимального времени.
       var force = state === 'off' || state === 'window';
-      var info = { setpoint: sp, temperature: t };
       for (var i = 0; i < this.devices.length; i++) {
         var d = this.devices[i];
+        var info = { setpoint: sp, temperature: t, get: this._getter(d.id + '_') };
         try {
           d.update(localDemand(demand, d.window), now, dt, force, info);
           d.publish(this._setter(d.id + '_'), now);

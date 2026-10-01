@@ -42,7 +42,8 @@
  *   - проверка конфигурации до запуска (пустые топики, один выход дважды);
  *   - несколько датчиков температуры — среднее по исправным; отказ части —
  *     авария без остановки; отказ всех — безопасная потребность;
- *   - открытое окно — отопление на паузе, интегратор заморожен;
+ *   - открытое окно — отопление на паузе, интегратор заморожен
+ *     (тёплый пол и на паузе держит «пол не ниже»);
  *   - защита от замерзания работает и в выключенной зоне;
  *   - ручная потребность — для пусконаладки: проверить клапаны и все
  *     скорости вентиляторов, не трогая уставку.
@@ -390,6 +391,14 @@ Zone.prototype._c = function (name) {
   return this.id + '/' + name;
 };
 
+/** Функция чтения контролов исполнителя: имя без префикса. */
+Zone.prototype._getter = function (prefix) {
+  var self = this;
+  return function (name) {
+    return dev[self._c(prefix + name)];
+  };
+};
+
 /** Функция записи контролов исполнителя: имя без префикса. */
 Zone.prototype._setter = function (prefix) {
   var self = this;
@@ -439,6 +448,17 @@ Zone.prototype._defineRules = function () {
 
   var watch = [this._c('enabled'), this._c('mode'), this._c('setpoint'), this._c('manual_demand')];
   for (var i = 0; i < this.winTopics.length; i++) watch.push(this.winTopics[i]);
+  // Правка настроек исполнителей на карточке («пол не ниже») — тоже сразу
+  var list = this.cfg.devices || [];
+  for (var j = 0; j < list.length; j++) {
+    var d = list[j] || {};
+    var t = DEVICE_TYPES[d.type || 'convector'];
+    if (!t) continue;
+    var ctls = t.controlsOf(d, deviceTitle(d, j));
+    for (var k = 0; k < ctls.length; k++) {
+      if (ctls[k].writable) watch.push(this._c(deviceId(d, j) + '_' + ctls[k].name));
+    }
+  }
   defineRule(this.id + '_wbclim_kick', {
     whenChanged: watch,
     then: function () {
@@ -643,9 +663,9 @@ Zone.prototype._tick = function () {
   // Выключили зону или открыли окно — клапаны закрываются сразу,
   // без выдержки минимального времени.
   var force = state === 'off' || state === 'window';
-  var info = { setpoint: sp, temperature: t };
   for (var i = 0; i < this.devices.length; i++) {
     var d = this.devices[i];
+    var info = { setpoint: sp, temperature: t, get: this._getter(d.id + '_') };
     try {
       d.update(localDemand(demand, d.window), now, dt, force, info);
       d.publish(this._setter(d.id + '_'), now);
