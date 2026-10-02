@@ -122,6 +122,19 @@ const used = new Set();
 })(schema);
 const en = schema.translations.en,
   ru = schema.translations.ru;
+// Названия типов приборов используются в заголовках: {{translate self.type}}
+if (/translate self\.type/.test(JSON.stringify(schema))) {
+  (function walk(n) {
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (!n || typeof n !== 'object') return;
+    if (n.properties && n.properties.type && Array.isArray(n.properties.type.enum)) {
+      n.properties.type.enum.forEach((v) => {
+        if (n.properties.valve) used.add(v); // только приборы (у них есть клапан)
+      });
+    }
+    for (const k of Object.keys(n)) if (k !== 'translations') walk(n[k]);
+  })(schema);
+}
 const missEn = [...used].filter((k) => !(k in en) && !/^\{\{/.test(k));
 const missRu = [...used].filter((k) => !(k in ru) && !/^\{\{/.test(k));
 check('все ключи есть в en', missEn.length === 0, missEn.join(', '));
@@ -281,6 +294,41 @@ console.log('\n=== 8. Пример с комментариями ===');
   const p = ZONE.checkZones(ex.zones);
   check('в примере нет ошибок конфигурации', Object.keys(p).every((k) => p[k].length === 0), JSON.stringify(p));
   check('в примере все три вида вентиляторов', ['relays', 'analog', 'none'].every((t) => ex.zones[0].devices.some((d) => d.fan.type === t)));
+}
+
+console.log('\n=== 8а. Заголовки элементов в форме ===');
+{
+  // Шаблонизатор веб-интерфейса Wiren Board (homeui, dumbtemplate.js):
+  // {{if A == ""}}…{{else}}…{{endif}}, {{translate VAR}}, {{VAR}}.
+  // Повторяем его разбор, чтобы заголовок совпадал с normalize().
+  const render = (src, vars) => {
+    const get = (expr) => {
+      if (/^".*"$/.test(expr)) return expr.slice(1, -1);
+      return expr.split('.').reduce((v, k) => (v == null ? v : v[k]), vars);
+    };
+    const str = (v) => (v === undefined || v === null || v === '' ? '' : String(v));
+    return src
+      .replace(/\{\{\s*if\s+([\w.\[\]]+?|".*?")\s*(==)\s*([\w.\[\]]+?|".*?")\s*\}\}(.*?)(?:\{\{else\}\}(.*?))?\{\{\s*endif\s*\}\}/g, (m, l, op, r, t, f) =>
+        str(get(l)) == get(r) ? t || '' : f || ''
+      )
+      .replace(/\{\{\s*translate\s+([\w.\[\]]+?)\s*\}\}/g, (m, e) => {
+        const v = str(get(e));
+        return schema.translations.ru[v] !== undefined ? schema.translations.ru[v] : v;
+      })
+      .replace(/\{\{\s*([\w.\[\]]+?)\s*\}\}/g, (m, e) => str(get(e)));
+  };
+  const devHdr = schema.definitions.zone.properties.devices.items.headerTemplate;
+  const zoneHdr = schema.definitions.zone.headerTemplate;
+  const env = createEnv();
+  const Z = env.require('wbclim-zone');
+  const devs = [{ type: 'convector', title: 'У окна' }, { type: 'convector', title: '' }, { type: 'floor', title: '' }];
+  const norm = Z.normalize([{ id: 'z', devices: devs }])[0].devices;
+  const hdrs = devs.map((d, i) => render(devHdr, { self: d, i1: i + 1 }));
+  check('заголовок прибора с названием — название', hdrs[0] === 'У окна', hdrs[0]);
+  check('заголовки приборов без названия = названия, которые даст код', hdrs[1] === norm[1].title && hdrs[2] === norm[2].title, hdrs.join(' | ') + ' / ' + norm.map((d) => d.title).join(' | '));
+  const zh = [render(zoneHdr, { self: { title: 'Гостиная' }, title: 'Помещение 1' }), render(zoneHdr, { self: { title: '' }, title: 'Помещение 2' })];
+  const zn = Z.normalize([{ id: 'a', title: 'Гостиная' }, { title: '' }]);
+  check('заголовки помещений: название, а без него — как у кода', zh[0] === 'Гостиная' && zh[1] === zn[1].title, zh.join(' | ') + ' / ' + zn[1].title);
 }
 
 console.log('\n=== 9. Команда установки ===');

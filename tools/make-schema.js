@@ -125,6 +125,9 @@ tr('phMqttTopic', 'Device/Control', 'Устройство/Контрол');
 tr('topicRowTitle', 'Control', 'Контрол');
 tr('topicColTitle', 'Device/Control', 'Устройство/Контрол');
 tr('phAuto', 'auto', 'авто');
+// Названия типов приборов для заголовков ({{translate self.type}})
+tr('convector', 'Convector', 'Конвектор');
+tr('floor', 'Underfloor heating', 'Тёплый пол');
 
 /* ---------------- вентилятор ---------------- */
 const fanStart = () => num('fanStart', 'Fan starts at demand, %', 'Вентилятор включается с потребности, %',
@@ -268,7 +271,7 @@ function devName() {
   return {
     type: 'string',
     title: tr('devNameTitle', 'Name', 'Название'),
-    description: tr('devNameDescription', 'Empty — by type and number: «Convector 2», «Underfloor heating 1»', 'Пусто — по типу и номеру: «Конвектор 2», «Тёплый пол 1»'),
+    description: tr('devNameDescription', 'Empty — type and number in the list, as in the header: «Convector 2»', 'Пусто — тип и номер в списке, как в заголовке: «Конвектор 2»'),
     default: '',
     propertyOrder: 2,
     options: { inputAttributes: { placeholder: 'phAuto' }, grid_columns: 8 }
@@ -343,7 +346,7 @@ defs.convector = {
   options: { disable_edit_json: true, disable_collapse: false },
   properties: {
     type: hiddenType('convector'),
-    id: devId(tr('convIdDescription', 'Prefix of the room card controls (conv1_valve). Empty — assigned automatically: next after the existing ones, conv1, conv2…', 'Префикс контролов на карточке помещения (conv1_valve). Пусто — присвоится сам: следующий после занятых, conv1, conv2…')),
+    id: devId(tr('convIdDescription', 'Prefix of the room card controls (conv2_valve). Empty — by the number in the list: conv2 for the second device', 'Префикс контролов на карточке помещения (conv2_valve). Пусто — по номеру в списке: у второго прибора conv2')),
     title: devName(),
     valve: group('valve', 'Thermal actuator (valve)', 'Термоголовка (клапан)', null, null,
       valveGroup({ minOn: 120, minOff: 120, openTime: 180, cycle: 900 }, true), 10, ['topics']),
@@ -375,7 +378,7 @@ defs.floor = {
   options: { disable_edit_json: true, disable_collapse: false },
   properties: {
     type: hiddenType('floor'),
-    id: devId(tr('floorIdDescription', 'Prefix of the room card controls (floor1_valve). Empty — assigned automatically: floor1, floor2…', 'Префикс контролов на карточке помещения (floor1_valve). Пусто — присвоится сам: floor1, floor2…')),
+    id: devId(tr('floorIdDescription', 'Prefix of the room card controls (floor1_valve). Empty — by the number in the list: floor1 for the first device', 'Префикс контролов на карточке помещения (floor1_valve). Пусто — по номеру в списке: у первого прибора floor1')),
     title: devName(),
     valve: group('floorValve', 'Loop thermal actuators', 'Термоголовки петель', null, null,
       valveGroup({ minOn: 180, minOff: 180, openTime: 180, cycle: 1200 }, false), 10, ['topics']),
@@ -394,17 +397,21 @@ defs.floor = {
 roleFields(defs.floor.properties);
 
 /* ---------------- зона ---------------- */
+// Шаблоны заголовков — dumbtemplate из веб-интерфейса Wiren Board
+// (homeui, json-editor/extensions/dumbtemplate.js): {{if}}…{{else}}…{{endif}},
+// {{translate VAR}} — перевод из translations этой схемы. Без названия
+// заголовок показывает то же, что присвоит код (normalize в wbclim-zone.js).
 defs.zone = {
   type: 'object',
   title: tr('zoneTitle', 'Room', 'Помещение'),
-  headerTemplate: '{{ self.title }}',
+  headerTemplate: '{{if self.title == ""}}{{title}}{{else}}{{self.title}}{{endif}}',
   _format: 'grid',
   options: { disable_edit_json: true },
   properties: {
     id: {
       type: 'string',
       title: tr('zoneIdTitle', 'MQTT id', 'MQTT id'),
-      description: tr('zoneIdDescription', 'Virtual device id, e.g. climate_living. Empty — assigned automatically: climate_room1, climate_room2…', 'id виртуального устройства, например climate_living. Пусто — присвоится сам: climate_room1, climate_room2…'),
+      description: tr('zoneIdDescription', 'Virtual device id, e.g. climate_living. Empty — by the number in the list: climate_room2. Set it explicitly if scenarios or Sprut.hub use the room', 'id виртуального устройства, например climate_living. Пусто — по номеру в списке: climate_room2. Если на помещение завязаны сценарии или Sprut.hub — задайте вручную'),
       pattern: '^$|^[0-9a-zA-Z_]+$',
       minLength: 0,
       maxLength: 40,
@@ -415,7 +422,7 @@ defs.zone = {
     title: {
       type: 'string',
       title: tr('zoneNameTitle', 'Name', 'Название'),
-      description: tr('zoneNameDescription', 'Empty — «Room 2» by number', 'Пусто — «Помещение 2» по номеру'),
+      description: tr('zoneNameDescription', 'Empty — «Room 2» by the number in the list, as in the header', 'Пусто — «Помещение 2» по номеру в списке, как в заголовке'),
       default: '',
       propertyOrder: 2,
       options: { inputAttributes: { placeholder: 'phAuto' }, grid_columns: 4 }
@@ -456,6 +463,7 @@ defs.zone = {
       propertyOrder: 50,
       items: {
         title: tr('deviceTitle', 'Device', 'Прибор'),
+        headerTemplate: '{{if self.title == ""}}{{translate self.type}} {{i1}}{{else}}{{self.title}}{{endif}}',
         oneOf: [{ $ref: '#/definitions/convector' }, { $ref: '#/definitions/floor' }],
         options: { keep_oneof_values: false, disable_edit_json: true }
       },

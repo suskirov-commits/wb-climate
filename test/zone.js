@@ -1045,12 +1045,14 @@ console.log('\n=== 15. Номера помещений и приборов пр�
   const before = JSON.stringify(src);
   const zs = ZONE.normalize(src);
   const ids = zs[0].devices.map((d) => d.id).join(',');
-  check('приборы: следующий номер после занятого — conv2, floor1, conv3', ids === 'conv1,conv2,floor1,conv3', ids);
+  check('приборы: номер в списке — conv2, floor3, conv4', ids === 'conv1,conv2,floor3,conv4', ids);
   const titles = zs[0].devices.map((d) => d.title).join(', ');
-  check('названия по типу и номеру', titles === 'Конвектор 1, Конвектор 2, Тёплый пол 1, Конвектор 3', titles);
+  check('названия — как заголовки в форме: тип и номер в списке', titles === 'Конвектор 1, Конвектор 2, Тёплый пол 3, Конвектор 4', titles);
   check('помещение без id — climate_room2, «Помещение 2»', zs[1].id === 'climate_room2' && zs[1].title === 'Помещение 2', zs[1].id + ' ' + zs[1].title);
   check('третье помещение — climate_room3', zs[2].id === 'climate_room3', zs[2].id);
-  check('вслед за существующим: после conv5 — conv6', zs[2].devices.map((d) => d.id).join(',') === 'conv5,conv6', zs[2].devices.map((d) => d.id).join(','));
+  check('второй прибор — conv2, хоть первый и conv5', zs[2].devices.map((d) => d.id).join(',') === 'conv5,conv2', zs[2].devices.map((d) => d.id).join(','));
+  const busy = ZONE.normalize([{ id: 'z', devices: [{ id: 'conv2' }, {}] }])[0].devices;
+  check('номер занят вручную — следующий свободный: conv3', busy[1].id === 'conv3' && busy[1].title === 'Конвектор 2', busy[1].id + ' / ' + busy[1].title);
   check('исходный конфиг не меняется', JSON.stringify(src) === before);
   check('повторная нормализация ничего не меняет', JSON.stringify(ZONE.normalize(zs)) === JSON.stringify(zs));
 }

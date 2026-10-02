@@ -126,9 +126,11 @@ function shallowCopy(o) {
 }
 
 /**
- * Пустые id и названия присваиваются сами: следующий номер после уже
- * занятых с тем же префиксом — «вслед за существующим» (conv1 занят —
- * новый станет conv2). Название — по типу и номеру: «Конвектор 2».
+ * Пустые id и названия присваиваются сами — по номеру в списке, так же,
+ * как их показывает форма: заголовок второго прибора без названия —
+ * «Конвектор 2» (шаблон headerTemplate в tools/make-schema.js), и на
+ * карточке он тоже «Конвектор 2», id conv2. Если номер уже занят
+ * вручную заданным id — следующий свободный (conv2 занят — conv3).
  *
  * Зачем в коде, а не в форме: редактор формы (json-editor) не умеет
  * нумеровать элементы массива — «+ Прибор» подставлял второму прибору те
@@ -142,35 +144,22 @@ function shallowCopy(o) {
  */
 function fillIds(list, prefixOf, nameOf) {
   var used = {};
-  var maxN = {};
-  var i, it, m;
+  var i, it;
   for (i = 0; i < list.length; i++) {
     it = list[i];
-    if (!it || !it.id) continue;
-    used[it.id] = true;
-    m = /^(.*?)(\d+)$/.exec(it.id);
-    if (m) maxN[m[1]] = Math.max(maxN[m[1]] || 0, parseInt(m[2], 10));
+    if (it && it.id) used[it.id] = true;
   }
-  for (i = 0; i < list.length; i++) {
-    it = list[i];
-    if (!it || it.id) continue;
-    var p = prefixOf(it);
-    var n = (maxN[p] || 0) + 1;
-    while (used[p + n]) n++;
-    it.id = p + n;
-    used[it.id] = true;
-    maxN[p] = n;
-  }
-  var count = {};
   for (i = 0; i < list.length; i++) {
     it = list[i];
     if (!it) continue;
-    var name = nameOf(it);
-    count[name] = (count[name] || 0) + 1;
-    if (!it.title) {
-      m = /(\d+)$/.exec(it.id);
-      it.title = name + ' ' + (m ? parseInt(m[1], 10) : count[name]);
+    if (!it.id) {
+      var p = prefixOf(it);
+      var n = i + 1;
+      while (used[p + n]) n++;
+      it.id = p + n;
+      used[it.id] = true;
     }
+    if (!it.title) it.title = nameOf(it) + ' ' + (i + 1);
   }
 }
 
