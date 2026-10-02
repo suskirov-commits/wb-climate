@@ -132,14 +132,14 @@
 
 ### Способ 1 — пакет (основной, с формой настроек)
 
-Установка и обновление — одна команда на контроллере:
+Установка и обновление — одна строка на контроллере:
 
 ```sh
-U=https://github.com/suskirov-commits/wb-climate/releases/latest/download
-wget -O /tmp/wbclim.deb $U/wb-climate_all.deb && dpkg -i --force-confold /tmp/wbclim.deb
+wget -O /tmp/wbclim.deb https://github.com/suskirov-commits/wb-climate/releases/latest/download/wb-climate_all.deb && dpkg -i --force-confold /tmp/wbclim.deb
 ```
 
-`--force-confold` оставляет конфигурацию объекта при обновлении.
+`--force-confold` оставляет конфигурацию объекта при обновлении. Строка
+без переменных — её можно повторить из истории терминала (стрелка вверх).
 
 ### Способ 2 — один файл через веб-интерфейс
 
@@ -351,7 +351,7 @@ usr/share/wb-mqtt-confed/schemas/…json    форма настроек (ген�
 tools/make-schema.js                      генератор формы настроек
 dist/wb-climate.js                        однофайловая сборка (генерируется)
 test/harness.js                           эмулятор рантайма wb-rules
-test/zone.js, bundle.js, schema.js        автотесты (312 проверок)
+test/zone.js, bundle.js, schema.js        автотесты (314 проверок)
 test/sim.js                               стенд: модель помещения
 ```
 

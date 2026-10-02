@@ -283,4 +283,26 @@ console.log('\n=== 8. Пример с комментариями ===');
   check('в примере все три вида вентиляторов', ['relays', 'analog', 'none'].every((t) => ex.zones[0].devices.some((d) => d.fan.type === t)));
 }
 
+console.log('\n=== 9. Команда установки ===');
+{
+  // Одна строка без переменных: команда с U=... во второй строке,
+  // вызванная из истории терминала без первой, падала «Scheme missing»
+  // (на контроллере 2026-10-02). README и страница релиза — одинаково
+  // (wbmix, грабля №16).
+  const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
+  const rel = fs.readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8');
+  const cmd = (txt) =>
+    txt
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => /wget .*wb-climate_all\.deb/.test(l)) || '';
+  const a = cmd(readme);
+  const b = cmd(rel);
+  const ok = (c) => /^wget -O \/tmp\/wbclim\.deb https:\/\/\S+\/wb-climate_all\.deb && dpkg -i --force-confold \/tmp\/wbclim\.deb$/.test(c) && c.indexOf('$U') < 0;
+  check('README: одна строка, без переменных, с --force-confold', ok(a), a);
+  const bn = b.replace('${{ github.repository }}', 'suskirov-commits/wb-climate').replace('${{ github.ref_name }}', 'vX');
+  const an = a.replace('latest/download', 'download/vX');
+  check('страница релиза: та же команда для своей версии', ok(bn) && an === bn, b);
+}
+
 R.done('schema.js');

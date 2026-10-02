@@ -76,8 +76,7 @@ jobs:
             ## Установка этой версии на контроллер
 
             ```sh
-            U=https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
-            wget -O /tmp/wbclim.deb $U/wb-climate_all.deb && dpkg -i --force-confold /tmp/wbclim.deb
+            wget -O /tmp/wbclim.deb https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/wb-climate_all.deb && dpkg -i --force-confold /tmp/wbclim.deb
             cat /usr/share/wb-climate/VERSION
             ```
 
