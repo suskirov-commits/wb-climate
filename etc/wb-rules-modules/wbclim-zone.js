@@ -288,9 +288,11 @@ function Zone(cfg, problems) {
   /* ---------- регулирование ---------- */
   var c = cfg.control || {};
   this.periodMs = U.def(c.period, 10) * 1000;
-  this.spMin = U.def(c.setpointMin, 10);
-  this.spMax = U.def(c.setpointMax, 30);
-  this.spDefault = U.clamp(U.def(cfg.defaultSetpoint, 22), this.spMin, this.spMax);
+  // Уставка — целые градусы: на карточке бегунок (range), а range по
+  // конвенциям Wiren Board только целочисленный
+  this.spMin = Math.round(U.def(c.setpointMin, 16));
+  this.spMax = Math.max(this.spMin, Math.round(U.def(c.setpointMax, 40)));
+  this.spDefault = U.clamp(Math.round(U.def(cfg.defaultSetpoint, 22)), this.spMin, this.spMax);
   // По умолчанию — по стенду test/sim.js на пяти моделях помещений
   // (типовое, лёгкое, конвектор вдвое мощнее и слабее нужного, подача
   // 45 °C): band 2 / ti 60 выводили утром с 20 на 22 °C за 83 мин,
@@ -398,14 +400,13 @@ Zone.prototype._buildDevice = function () {
       1: { en: 'Manual demand (commissioning)', ru: 'Ручная потребность (проверка)' }
     }
   });
-  // Уставка — value, а не range: range по конвенциям Wiren Board только
-  // целочисленный, а уставку помещения задают с шагом 0,5 °C.
+  // Уставка — бегунок с шагом 1 °C (пользователь на стенде: «уставку
+  // бегунком, 16–40, пусть будут целые числа»)
   add(
     'setpoint',
     {
       title: { en: 'Setpoint', ru: 'Уставка' },
-      type: 'value',
-      readonly: false,
+      type: 'range',
       value: this.spDefault,
       min: this.spMin,
       max: this.spMax
@@ -668,10 +669,13 @@ Zone.prototype._num = function (name, d, lo, hi) {
   return U.isNum(v) ? U.clamp(v, lo, hi) : d;
 };
 
-/** Уставка с контрола: в пределах и с шагом 0,1; неверный ввод исправляется на карточке. */
+/**
+ * Уставка с контрола: целые градусы в пределах. Неверный ввод и дробная
+ * уставка, сохранённая версией до бегунка (21,5), исправляются на карточке.
+ */
 Zone.prototype._setpoint = function () {
   var raw = U.toNum(dev[this._c('setpoint')]);
-  var sp = U.isNum(raw) ? U.round(U.clamp(raw, this.spMin, this.spMax), 1) : this.spDefault;
+  var sp = U.isNum(raw) ? Math.round(U.clamp(raw, this.spMin, this.spMax)) : this.spDefault;
   if (raw !== sp) this._set('setpoint', sp);
   return sp;
 };

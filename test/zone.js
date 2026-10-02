@@ -423,13 +423,43 @@ console.log('\n=== 8. Ручная потребность, уставка ===');
 
   env.set('room/setpoint', 25.37);
   env.advance(1000);
-  check('уставка округляется до 0,1', env.get('room/setpoint') === 25.4, env.get('room/setpoint'));
+  check('уставка округляется до целых', env.get('room/setpoint') === 25, env.get('room/setpoint'));
+  env.set('room/setpoint', 21.5);
+  env.advance(1000);
+  check('21,5 → 22', env.get('room/setpoint') === 22, env.get('room/setpoint'));
   env.set('room/setpoint', 100);
   env.advance(1000);
-  check('уставка ограничена сверху (30)', env.get('room/setpoint') === 30, env.get('room/setpoint'));
+  check('уставка ограничена сверху (40)', env.get('room/setpoint') === 40, env.get('room/setpoint'));
+  env.set('room/setpoint', 3);
+  env.advance(1000);
+  check('уставка ограничена снизу (16)', env.get('room/setpoint') === 16, env.get('room/setpoint'));
   env.set('room/setpoint', 'abc');
   env.advance(1000);
   check('мусор вместо уставки — значение по умолчанию', env.get('room/setpoint') === 22, env.get('room/setpoint'));
+}
+{
+  // Уставка — бегунок с целыми градусами, 16–40 по умолчанию
+  const env = makeEnv();
+  env.require('wbclim-zone').create(relaysZone());
+  const sp = env.devices.room.cells.setpoint;
+  check('уставка на карточке — бегунок (range)', sp.type === 'range', sp.type);
+  check('пределы бегунка по умолчанию 16–40', sp.min === 16 && sp.max === 40, sp.min + '–' + sp.max);
+  check('единицы °C у бегунка', env.devices.room._units.setpoint === 'deg C', env.devices.room._units.setpoint);
+}
+{
+  // Версия до бегунка сохранила 21,5 — после обновления на карточке 22
+  const env = makeEnv();
+  env.control('room/setpoint', 21.5);
+  env.require('wbclim-zone').create(relaysZone());
+  env.advance(15 * 1000);
+  check('сохранённая 21,5 после обновления — 22', env.get('room/setpoint') === 22, env.get('room/setpoint'));
+}
+{
+  // Дробные пределы и уставка по умолчанию из старого конфига — целые
+  const env = makeEnv();
+  env.require('wbclim-zone').create(relaysZone({ defaultSetpoint: 21.5, control: { period: 10, setpointMin: 15.5, setpointMax: 25.4 } }));
+  const sp = env.devices.room.cells.setpoint;
+  check('дробные пределы и уставка из конфига округляются', sp.min === 16 && sp.max === 25 && sp.value === 22, sp.min + '–' + sp.max + ' / ' + sp.value);
 }
 
 /* ================================================================== */

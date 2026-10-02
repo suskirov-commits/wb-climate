@@ -441,7 +441,7 @@ defs.zone = {
       options: { inputAttributes: { placeholder: 'phAuto' }, grid_columns: 4 }
     },
     defaultSetpoint: num('zoneSetpoint', 'Default setpoint, °C', 'Уставка по умолчанию, °C',
-      'Then set on the room card', 'Дальше задаётся на карточке помещения', 5, 35, 22, 3, 2),
+      'Then set on the room card (slider, whole degrees)', 'Дальше задаётся на карточке помещения (бегунок, целые градусы)', 5, 40, 22, 3, 2, true),
     defaultEnabled: bool('zoneEnabled', 'Enabled by default', 'Включено по умолчанию', null, null, true, 4, 2),
     sensors: group('sensors', 'Sensors', 'Датчики', 'Pick controls from the list of MQTT topics', 'Выберите контролы из списка MQTT-топиков', {
       temperature: topicArray('senTemp', 'Temperature *', 'Температура *',
@@ -460,8 +460,8 @@ defs.zone = {
       ti: num('ctlTi', 'Integral time, min', 'Время интегрирования, мин',
         'Removes steady undershoot in cold weather. 0 = P only', 'Снимает недобор в мороз. 0 — чистый П', 0, 240, 30, 2, 4, true),
       period: num('ctlPeriod', 'Control period, s', 'Такт, с', null, null, 2, 60, 10, 3, 4, true),
-      setpointMin: num('ctlSpMin', 'Setpoint min, °C', 'Уставка не ниже, °C', null, null, 5, 30, 10, 4, 4),
-      setpointMax: num('ctlSpMax', 'Setpoint max, °C', 'Уставка не выше, °C', null, null, 15, 40, 30, 5, 4)
+      setpointMin: num('ctlSpMin', 'Setpoint min, °C', 'Уставка не ниже, °C', null, null, 5, 30, 16, 4, 4, true),
+      setpointMax: num('ctlSpMax', 'Setpoint max, °C', 'Уставка не выше, °C', null, null, 15, 40, 40, 5, 4, true)
     }, 30),
     safety: group('safety', 'Protection', 'Защиты', null, null, {
       frostProtect: bool('safFrost', 'Frost protection', 'Защита от замерзания', 'Works even when the room is off', 'Работает и в выключенном помещении', true, 1, 4),
