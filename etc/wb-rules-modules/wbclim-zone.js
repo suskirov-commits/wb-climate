@@ -809,7 +809,11 @@ Zone.prototype._tick = function () {
   var force = state === 'off' || state === 'window';
   for (var i = 0; i < this.devices.length; i++) {
     var d = this.devices[i];
-    var info = { setpoint: sp, temperature: t, get: this._getter(d.id + '_') };
+    // auto — регулирование по уставке: конвектор может брать скорость
+    // по разнице температур (в ручном режиме, на защитах и при отказе
+    // датчиков — только по потребности)
+    var auto = state === 'idle' || state === 'ready' || state === 'heating';
+    var info = { setpoint: sp, temperature: t, auto: auto, get: this._getter(d.id + '_') };
     try {
       d.update(localDemand(demand, d.window), now, dt, force, info);
       d.publish(this._setter(d.id + '_'), now);

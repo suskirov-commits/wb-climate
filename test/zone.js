@@ -50,7 +50,7 @@ function relaysZone(extra) {
           id: 'conv',
           title: 'Конвектор',
           valve: { topics: [VALVE] },
-          fan: { type: 'relays', speeds: [S1, S2, S3] }
+          fan: { type: 'relays', speedBy: 'demand', speeds: [S1, S2, S3] }
         }
       ]
     },
@@ -585,7 +585,7 @@ console.log('\n=== 9. Вентилятор 0-10 В и Modbus ===');
   const env = makeEnv();
   const ZONE = env.require('wbclim-zone');
   const cfg = relaysZone({ control: { period: 10, band: 2, ti: 0 } });
-  cfg.devices[0].fan = { type: 'relays', speeds: [S1, S2, S3], relayMode: 'cumulative', delay: 0 };
+  cfg.devices[0].fan = { type: 'relays', speedBy: 'demand', speeds: [S1, S2, S3], relayMode: 'cumulative', delay: 0 };
   ZONE.create(cfg);
   setT(env, 18);
   env.advance(20 * 1000);
@@ -595,7 +595,7 @@ console.log('\n=== 9. Вентилятор 0-10 В и Modbus ===');
   const env = makeEnv();
   const ZONE = env.require('wbclim-zone');
   const cfg = relaysZone({ control: { period: 10, band: 2, ti: 0 } });
-  cfg.devices[0].fan = { type: 'relays', speeds: [S1, S2], delay: 0 };
+  cfg.devices[0].fan = { type: 'relays', speedBy: 'demand', speeds: [S1, S2], delay: 0 };
   ZONE.create(cfg);
   setT(env, 18);
   env.advance(20 * 1000);
@@ -967,7 +967,7 @@ console.log('\n=== 14. Пол + конвектор: доли потребнос�
 function mixedZone(conv) {
   const z = floorZone({ control: { period: 10, band: 2, ti: 0 } });
   z.devices.push(
-    Object.assign({ type: 'convector', id: 'conv', title: 'Конвектор', valve: { topics: [VALVE] }, fan: { type: 'relays', speeds: [S1, S2, S3], delay: 0 } }, conv || {})
+    Object.assign({ type: 'convector', id: 'conv', title: 'Конвектор', valve: { topics: [VALVE] }, fan: { type: 'relays', speedBy: 'demand', speeds: [S1, S2, S3], delay: 0 } }, conv || {})
   );
   return z;
 }
@@ -1185,6 +1185,152 @@ console.log('\n=== 16. Карточка без контролов удалённ
   setT(env, 18);
   env.advance(15 * 1000);
   check('без mosquitto_sub — без ошибок, клапан работает', env.get(VALVE) === true && env.published.length === 0, env.logs.join(' | '));
+}
+
+/* ================================================================== */
+console.log('\n=== 17. Скорость по разнице «уставка − температура», шаг 2 °C ===');
+/** Конвектор на реле без speedBy — по умолчанию по разнице. */
+function deltaZone(fan, extra) {
+  return relaysZone(
+    Object.assign(
+      {
+        devices: [
+          {
+            type: 'convector',
+            id: 'conv',
+            title: 'Конвектор',
+            valve: { topics: [VALVE], minOn: 0, minOff: 0 },
+            fan: Object.assign({ type: 'relays', speeds: [S1, S2, S3], delay: 0 }, fan || {})
+          }
+        ]
+      },
+      extra || {}
+    )
+  );
+}
+{
+  // Уставка 22. Пользователь: «0–2 → 1, 2–4 → 2, от 4 → 3»
+  const env = makeEnv();
+  env.control(TEMP, 21);
+  env.require('wbclim-zone').create(deltaZone());
+  env.advance(15 * 1000);
+  check('разница 1 °C: клапан открыт, скорость 1', env.get(VALVE) === true && speed(env) === 1, speed(env));
+  check('на карточке — разница', /скорость 1 \(разница 1 °C\)/.test(env.get('room/conv_status')), env.get('room/conv_status'));
+  setT(env, 19);
+  env.advance(70 * 1000);
+  check('разница 3 °C: скорость 2', speed(env) === 2, speed(env));
+  setT(env, 17.5);
+  env.advance(70 * 1000);
+  check('разница 4,5 °C: скорость 3', speed(env) === 3, speed(env));
+  setT(env, 18.2);
+  env.advance(70 * 1000);
+  check('разница 3,8 °C (гистерезис 0,3): скорость 3 держится', speed(env) === 3, speed(env));
+  setT(env, 18.4);
+  env.advance(70 * 1000);
+  check('разница 3,6 °C: скорость 2', speed(env) === 2, speed(env));
+  setT(env, 20.2);
+  env.advance(70 * 1000);
+  check('разница 1,8 °C: скорость 2 держится', speed(env) === 2, speed(env));
+  setT(env, 20.4);
+  env.advance(70 * 1000);
+  check('разница 1,6 °C: скорость 1', speed(env) === 1, speed(env));
+  setT(env, 22.2);
+  env.advance(70 * 1000);
+  check('на 0,2 °C теплее уставки — скорость 1 ещё работает', speed(env) === 1 && env.get(VALVE) === true, speed(env));
+  setT(env, 22.4);
+  env.advance(20 * 1000);
+  check('на 0,4 °C теплее уставки — вентилятор стоит, клапан закрыт', speed(env) === 0 && env.get(VALVE) === false, speed(env) + ' / ' + env.get(VALVE));
+  setT(env, 21.9);
+  env.advance(20 * 1000);
+  check('снова холоднее уставки — скорость 1', speed(env) === 1 && env.get(VALVE) === true, speed(env));
+}
+{
+  // Ровно 2 °C — ещё скорость 1: «0–2 → 1»
+  const env = makeEnv();
+  env.control(TEMP, 20);
+  env.require('wbclim-zone').create(deltaZone());
+  env.advance(15 * 1000);
+  check('разница ровно 2 °C — скорость 1', speed(env) === 1, speed(env));
+}
+{
+  // Задержка вентилятора после открытия клапана — и в этом режиме
+  const env = makeEnv();
+  env.control(TEMP, 17);
+  env.require('wbclim-zone').create(deltaZone({ delay: 180 }));
+  env.advance(15 * 1000);
+  check('клапан открыт, вентилятор ждёт прогрева', env.get(VALVE) === true && speed(env) === 0, speed(env));
+  env.advance(180 * 1000);
+  check('после прогрева — сразу скорость 3 (разница 5 °C)', speed(env) === 3, speed(env));
+}
+{
+  // С полом — та же шкала: потребность 30 % (догрев конвектора с 50 %),
+  // а конвектор по разнице 0,6 °C работает на первой
+  const env = makeEnv();
+  env.control(FL1, 25);
+  env.control(FL2, 25);
+  env.control(TEMP, 21.4);
+  env.require('wbclim-zone').create(mixedZone({ fan: { type: 'relays', speeds: [S1, S2, S3], delay: 0 } }));
+  env.advance(15 * 1000);
+  check('с полом: потребность 30 %, пол греет', env.get('room/demand') === 30 && env.get(FV) === true, env.get('room/demand'));
+  check('с полом: конвектор по разнице 0,6 °C — скорость 1', env.get(VALVE) === true && speed(env) === 1, speed(env));
+}
+{
+  // Ручная потребность (проверка) — по процентам, как раньше
+  const env = makeEnv();
+  env.control(TEMP, 23);
+  env.require('wbclim-zone').create(deltaZone());
+  env.advance(15 * 1000);
+  check('теплее уставки — всё выключено', speed(env) === 0 && env.get(VALVE) === false);
+  env.set('room/mode', 1);
+  env.set('room/manual_demand', 100);
+  env.advance(15 * 1000);
+  check('ручная 100 % — скорость 3 при любой разнице', speed(env) === 3 && env.get(VALVE) === true, speed(env));
+  env.set('room/mode', 0);
+  env.advance(15 * 1000);
+  check('возврат в авто — снова по разнице: выключено', speed(env) === 0, speed(env));
+}
+{
+  // Окно и выключатель — выключают и в этом режиме
+  const env = makeEnv();
+  env.control(TEMP, 18);
+  env.require('wbclim-zone').create(deltaZone({}, { window: { topics: [WIN], delay: 0 } }));
+  env.advance(15 * 1000);
+  check('разница 4 °C: работает', speed(env) > 0);
+  env.set(WIN, true);
+  env.advance(15 * 1000);
+  check('окно открыто — вентилятор и клапан выключены', speed(env) === 0 && env.get(VALVE) === false, speed(env));
+  env.set(WIN, false);
+  env.advance(15 * 1000);
+  env.set('room/enabled', false);
+  env.advance(15 * 1000);
+  check('помещение выключено — вентилятор и клапан выключены', speed(env) === 0 && env.get(VALVE) === false, speed(env));
+}
+{
+  // Шаг и гистерезис из настроек
+  const env = makeEnv();
+  env.control(TEMP, 20.5);
+  env.require('wbclim-zone').create(deltaZone({ deltaStep: 1 }));
+  env.advance(15 * 1000);
+  check('шаг 1 °C: разница 1,5 °C — скорость 2', speed(env) === 2, speed(env));
+}
+{
+  // Плавный вентилятор 0-10 В по разнице: от min на нуле до max на трёх шагах
+  const env = makeEnv();
+  env.control(TEMP, 19);
+  env.require('wbclim-zone').create(
+    deltaZone({ type: 'analog', speeds: undefined, out: AO, speedBy: 'delta', min: 20, max: 100 })
+  );
+  env.advance(15 * 1000);
+  check('0-10 В, разница 3 °C из 6 — 60 % (6000 мВ)', env.get(AO) === 6000, env.get(AO));
+}
+{
+  // Явно «по потребности» — прежняя логика: разница 1 °C при зоне 1,5 К
+  // — потребность 67 %, по порогам 20/47/73 % это скорость 2
+  const env = makeEnv();
+  env.control(TEMP, 21);
+  env.require('wbclim-zone').create(deltaZone({ speedBy: 'demand' }));
+  env.advance(15 * 1000);
+  check('speedBy: demand — скорость по потребности (2)', speed(env) === 2, speed(env) + ' / ' + env.get('room/demand'));
 }
 
 R.done('zone.js');

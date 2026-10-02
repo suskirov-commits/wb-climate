@@ -197,9 +197,30 @@ defs.fanRelays = {
     },
     interlock: num('fanInterlock', 'Pause on speed change, ms', 'Пауза при смене скорости, мс',
       'Two motor taps must never be on together', 'Два отвода обмотки не должны быть включены одновременно', 0, 5000, 500, 3, 6, true),
+    speedBy: {
+      type: 'string',
+      title: tr('fanSpeedByTitle', 'Speed by', 'Скорость выбирается'),
+      description: tr('fanSpeedByDescription',
+        'By difference: setpoint − temperature 0…step — speed 1, step…2·step — speed 2, further — speed 3; the valve is open while the room is colder than the setpoint',
+        'По разнице: уставка − температура 0…шаг — скорость 1, шаг…2 шага — скорость 2, дальше — скорость 3; клапан открыт, пока в комнате холоднее уставки'),
+      enum: ['delta', 'demand'],
+      default: 'delta',
+      propertyOrder: 4,
+      options: {
+        enum_titles: [
+          tr('fanSpeedByDelta', 'By temperature difference', 'По разнице температур'),
+          tr('fanSpeedByDemand', 'By room heat demand (%)', 'По потребности помещения (%)')
+        ],
+        grid_columns: 6
+      }
+    },
+    deltaStep: num('fanDeltaStep', 'Speed step, °C', 'Шаг скорости, °C',
+      'By difference: 2 — speed 1 below 2 °C, speed 2 from 2 °C, speed 3 from 4 °C', 'По разнице: 2 — скорость 1 до 2 °C, скорость 2 с 2 °C, скорость 3 с 4 °C', 0.5, 10, 2, 5, 3),
+    deltaHyst: num('fanDeltaHyst', 'Difference hysteresis, °C', 'Гистерезис по разнице, °C',
+      'Speed drops this much below its threshold; the fan stops when the room is this much above the setpoint', 'Скорость снижается на столько ниже своего порога; вентилятор останавливается, когда в комнате на столько теплее уставки', 0, 1, 0.3, 6, 3),
     enable: fanEnable(),
-    start: fanStart(),
-    hyst: fanHyst(),
+    start: Object.assign(fanStart(), { description: tr('fanStartByDemandDescription', 'By demand only. Below this — natural convection', 'Только «по потребности». Ниже — греет естественной конвекцией') }),
+    hyst: Object.assign(fanHyst(), { description: tr('fanHystByDemandDescription', 'By demand only. Fewer relay clicks near a step threshold', 'Только «по потребности». Меньше щелчков реле у порога ступени') }),
     minStepTime: fanStep(),
     delay: fanDelay(),
     minWater: fanMinWater()

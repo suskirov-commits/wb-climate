@@ -89,8 +89,13 @@ var CONFIG = {
             "speeds": ["wb-mr6c_45/K2", "wb-mr6c_45/K3", "wb-mr6c_45/K4"],
             "relayMode": "exclusive", // одно реле на скорость
             "interlock": 500, // пауза при смене скорости, мс
-            "start": 20, // потребность, с которой включается вентилятор, %
-            "hyst": 10, // гистерезис при снижении скорости, %
+            // Скорость по разнице «уставка − температура»: до 2 °C — 1,
+            // 2–4 °C — 2, от 4 °C — 3; "demand" — по потребности помещения
+            "speedBy": "delta",
+            "deltaStep": 2, // шаг скорости по разнице, °C
+            "deltaHyst": 0.3, // гистерезис по разнице, °C
+            "start": 20, // по потребности: с какой потребности включается, %
+            "hyst": 10, // по потребности: гистерезис снижения скорости, %
             "minStepTime": 60, // выдержка между сменами скорости, с
             "delay": 180, // не дуть, пока теплообменник не прогрелся, с
             "minWater": 30 // то же по датчику воды, если он задан, °C
@@ -1017,6 +1022,26 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
      * вниз — с гистерезисом hyst. Между переключениями ступеней выдерживается
      * minStepTime: датчик температуры шумит, и без этого реле скоростей
      * щёлкали бы на каждом такте. Пуск с нуля и остановка — без задержки.
+     *
+     * Скорость по разнице температур (speedBy: "delta", по умолчанию для
+     * реле скоростей — пользователь на стенде: «скорость вентилятора привязать
+     * к разнице градусов между уставкой и реальной, с градацией 2 градуса»).
+     * Разница = уставка − температура, шаг deltaStep (2 °C):
+     *
+     *   разница ≤ 0          ─ клапан закрыт, вентилятор стоит
+     *   0 … шаг              ─ скорость 1
+     *   шаг … 2·шаг          ─ скорость 2
+     *   от 2·шага            ─ скорость 3 (последняя)
+     *
+     * Вверх — сразу за порогом, вниз — на deltaHyst ниже порога: вентилятор
+     * останавливается, когда в комнате на deltaHyst теплее уставки.
+     * Клапан открыт, пока скорость не ноль. Потребность помещения и роль
+     * прибора (догрев при поле) в этом режиме не участвуют — по выбору
+     * пользователя, шкала одна и с полом. Только в режиме «Авто» при
+     * исправных датчиках: ручная потребность, защита от замерзания, отказ
+     * датчиков, окно и выключенное помещение работают по потребности, как
+     * раньше. Плавный вентилятор (0-10 В, Modbus без ступеней) — линейно
+     * от min на нуле до max на трёх шагах.
      */
 
     var U = require('wbclim-util');
@@ -1052,6 +1077,11 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       // По умолчанию вентилятор ждёт полного открытия термоголовки
       this.fanDelayMs = U.def(f.delay, U.def(v.openTime, 180)) * 1000;
       this.waterMin = U.def(f.minWater, 30);
+      this.speedBy = f.speedBy === 'delta' || f.speedBy === 'demand' ? f.speedBy : f.type === 'relays' ? 'delta' : 'demand';
+      this.deltaStep = U.clamp(U.def(f.deltaStep, 2), 0.5, 10);
+      this.deltaHyst = U.clamp(U.def(f.deltaHyst, 0.3), 0, 1);
+      this.dLevel = 0; // ступень по разнице, с гистерезисом; у плавного — 0/1
+      this.delta = null; // разница, если скорость сейчас по ней
       this.waterHyst = 3;
 
       this.water = cfg.waterSensor
@@ -1100,21 +1130,57 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
     };
 
     /**
+     * Ступень по разнице «уставка − температура». Пороги ступени k —
+     * (k − 1)·шаг: вверх, когда разница больше порога, вниз — когда не больше
+     * порога минус гистерезис. Плавный вентилятор: вкл/выкл так же, как
+     * ступень 1, скорость — от min до max на трёх шагах.
+     */
+    Convector.prototype._deltaTarget = function (delta) {
+      var step = this.deltaStep;
+      var h = this.deltaHyst;
+      var n = this.fan.steps > 0 ? this.fan.steps : 1;
+      var lvl = this.dLevel;
+      while (lvl < n && delta > lvl * step) lvl++;
+      while (lvl > 0 && delta <= (lvl - 1) * step - h) lvl--;
+      this.dLevel = lvl;
+      if (this.fan.steps > 0 || lvl === 0) return lvl;
+      var x = U.clamp(delta / (3 * step), 0, 1);
+      return Math.round(this.fanMin + (this.fanMax - this.fanMin) * x);
+    };
+
+    /**
      * Такт.
      * @param {number} demand потребность зоны, %
      * @param {number} now    мс
      * @param {number} dt     с с прошлого такта
      * @param {bool}   force  переключить клапан без учёта минимальных времён
+     * @param {Object} [info] { setpoint, temperature, auto } от помещения
      */
-    Convector.prototype.update = function (demand, now, dt, force) {
+    Convector.prototype.update = function (demand, now, dt, force, info) {
       if (this.water) this.water.poll(dt);
+      var byDelta =
+        this.fan !== null &&
+        this.speedBy === 'delta' &&
+        !!info &&
+        info.auto === true &&
+        U.isNum(info.setpoint) &&
+        U.isNum(info.temperature);
+      var want = 0;
+      if (byDelta) {
+        this.delta = info.setpoint - info.temperature;
+        want = this._deltaTarget(this.delta);
+        demand = want > 0 ? 100 : 0;
+      } else {
+        this.delta = null;
+        this.dLevel = 0;
+      }
       var open = this.valve.update(demand, now, force);
       if (!this.fan) return;
 
       var target = 0;
       this.blocked = '';
       if (open) {
-        var want = this._fanTarget(demand);
+        if (!byDelta) want = this._fanTarget(demand);
         if (want > 0 && !this._isWarm(now)) {
           this.blocked = this.water && this.water.ok() ? 'water' : 'delay';
         } else target = want;
@@ -1152,8 +1218,9 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       }
       // уровень драйвера: плавный вентилятор может держать записанное значение
       var lvl = this.fan.level;
-      if (lvl <= 0) return s + ', вентилятор стоит';
-      return s + ', вентилятор ' + (this.fan.steps > 0 ? 'скорость ' + lvl : Math.round(lvl) + ' %');
+      var d = this.delta !== null ? ' (разница ' + U.round(this.delta, 1) + ' °C)' : '';
+      if (lvl <= 0) return s + ', вентилятор стоит' + d;
+      return s + ', вентилятор ' + (this.fan.steps > 0 ? 'скорость ' + lvl : Math.round(lvl) + ' %') + d;
     };
 
     /** Значения контролов на карточке помещения. */
@@ -1184,6 +1251,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
     Convector.prototype.halt = function () {
       if (this.fan) this.fan.halt();
       this.level = 0;
+      this.dLevel = 0;
       this.valve.halt();
     };
 
@@ -2342,7 +2410,11 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
       var force = state === 'off' || state === 'window';
       for (var i = 0; i < this.devices.length; i++) {
         var d = this.devices[i];
-        var info = { setpoint: sp, temperature: t, get: this._getter(d.id + '_') };
+        // auto — регулирование по уставке: конвектор может брать скорость
+        // по разнице температур (в ручном режиме, на защитах и при отказе
+        // датчиков — только по потребности)
+        var auto = state === 'idle' || state === 'ready' || state === 'heating';
+        var info = { setpoint: sp, temperature: t, auto: auto, get: this._getter(d.id + '_') };
         try {
           d.update(localDemand(demand, d.window), now, dt, force, info);
           d.publish(this._setter(d.id + '_'), now);

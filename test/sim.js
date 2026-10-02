@@ -120,7 +120,7 @@ function zoneConfig(v) {
       ? { type: 'analog', out: AO, start: v.fanStart, min: 20, hyst: v.fanHyst, delay: v.fanDelay }
       : v.fan === 'modbus'
       ? { type: 'modbus', out: MB, steps: 0, minChange: v.minChange, start: v.fanStart, min: 20, hyst: v.fanHyst, delay: v.fanDelay }
-      : { type: 'relays', speeds: [S1, S2, S3], start: v.fanStart, hyst: v.fanHyst, minStepTime: v.fanStep, delay: v.fanDelay };
+      : { type: 'relays', speedBy: 'demand', speeds: [S1, S2, S3], start: v.fanStart, hyst: v.fanHyst, minStepTime: v.fanStep, delay: v.fanDelay };
   const conv = {
     type: 'convector',
     id: 'conv',

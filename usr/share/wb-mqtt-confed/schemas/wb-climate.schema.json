@@ -125,6 +125,48 @@
           },
           "description": "fanInterlockDescription"
         },
+        "speedBy": {
+          "type": "string",
+          "title": "fanSpeedByTitle",
+          "description": "fanSpeedByDescription",
+          "enum": [
+            "delta",
+            "demand"
+          ],
+          "default": "delta",
+          "propertyOrder": 4,
+          "options": {
+            "enum_titles": [
+              "fanSpeedByDelta",
+              "fanSpeedByDemand"
+            ],
+            "grid_columns": 6
+          }
+        },
+        "deltaStep": {
+          "type": "number",
+          "title": "fanDeltaStepTitle",
+          "minimum": 0.5,
+          "maximum": 10,
+          "default": 2,
+          "propertyOrder": 5,
+          "options": {
+            "grid_columns": 3
+          },
+          "description": "fanDeltaStepDescription"
+        },
+        "deltaHyst": {
+          "type": "number",
+          "title": "fanDeltaHystTitle",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.3,
+          "propertyOrder": 6,
+          "options": {
+            "grid_columns": 3
+          },
+          "description": "fanDeltaHystDescription"
+        },
         "enable": {
           "type": "string",
           "title": "fanEnableTitle",
@@ -155,7 +197,7 @@
           "options": {
             "grid_columns": 4
           },
-          "description": "fanStartDescription"
+          "description": "fanStartByDemandDescription"
         },
         "hyst": {
           "type": "number",
@@ -167,7 +209,7 @@
           "options": {
             "grid_columns": 4
           },
-          "description": "fanHystDescription"
+          "description": "fanHystByDemandDescription"
         },
         "minStepTime": {
           "type": "integer",
@@ -1602,12 +1644,22 @@
       "fanRelayModeCumulative": "Speed N = relays 1..N",
       "fanInterlockTitle": "Pause on speed change, ms",
       "fanInterlockDescription": "Two motor taps must never be on together",
+      "fanSpeedByTitle": "Speed by",
+      "fanSpeedByDescription": "By difference: setpoint − temperature 0…step — speed 1, step…2·step — speed 2, further — speed 3; the valve is open while the room is colder than the setpoint",
+      "fanSpeedByDelta": "By temperature difference",
+      "fanSpeedByDemand": "By room heat demand (%)",
+      "fanDeltaStepTitle": "Speed step, °C",
+      "fanDeltaStepDescription": "By difference: 2 — speed 1 below 2 °C, speed 2 from 2 °C, speed 3 from 4 °C",
+      "fanDeltaHystTitle": "Difference hysteresis, °C",
+      "fanDeltaHystDescription": "Speed drops this much below its threshold; the fan stops when the room is this much above the setpoint",
       "fanEnableTitle": "Fan power relay",
       "fanEnableDescription": "Optional: switched on while the fan runs",
       "fanStartTitle": "Fan starts at demand, %",
       "fanStartDescription": "Below this the convector heats by natural convection only",
+      "fanStartByDemandDescription": "By demand only. Below this — natural convection",
       "fanHystTitle": "Speed-down hysteresis, %",
       "fanHystDescription": "Fewer relay clicks near a step threshold",
+      "fanHystByDemandDescription": "By demand only. Fewer relay clicks near a step threshold",
       "fanStepTitle": "Min time between speed changes, s",
       "fanDelayTitle": "Fan delay after valve opens, s",
       "fanDelayDescription": "No cold draft: wait until the heat exchanger warms up",
@@ -1743,12 +1795,22 @@
       "fanRelayModeCumulative": "Скорость N = реле 1..N",
       "fanInterlockTitle": "Пауза при смене скорости, мс",
       "fanInterlockDescription": "Два отвода обмотки не должны быть включены одновременно",
+      "fanSpeedByTitle": "Скорость выбирается",
+      "fanSpeedByDescription": "По разнице: уставка − температура 0…шаг — скорость 1, шаг…2 шага — скорость 2, дальше — скорость 3; клапан открыт, пока в комнате холоднее уставки",
+      "fanSpeedByDelta": "По разнице температур",
+      "fanSpeedByDemand": "По потребности помещения (%)",
+      "fanDeltaStepTitle": "Шаг скорости, °C",
+      "fanDeltaStepDescription": "По разнице: 2 — скорость 1 до 2 °C, скорость 2 с 2 °C, скорость 3 с 4 °C",
+      "fanDeltaHystTitle": "Гистерезис по разнице, °C",
+      "fanDeltaHystDescription": "Скорость снижается на столько ниже своего порога; вентилятор останавливается, когда в комнате на столько теплее уставки",
       "fanEnableTitle": "Реле питания вентилятора",
       "fanEnableDescription": "Необязательно: включено, пока вентилятор работает",
       "fanStartTitle": "Вентилятор включается с потребности, %",
       "fanStartDescription": "Ниже — греет только естественной конвекцией",
+      "fanStartByDemandDescription": "Только «по потребности». Ниже — греет естественной конвекцией",
       "fanHystTitle": "Гистерезис снижения скорости, %",
       "fanHystDescription": "Меньше щелчков реле у порога ступени",
+      "fanHystByDemandDescription": "Только «по потребности». Меньше щелчков реле у порога ступени",
       "fanStepTitle": "Выдержка между сменами скорости, с",
       "fanDelayTitle": "Задержка вентилятора после открытия клапана, с",
       "fanDelayDescription": "Защита от холодного дутья: ждать прогрева теплообменника",
