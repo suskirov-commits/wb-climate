@@ -55,11 +55,10 @@
         "speeds": {
           "type": "array",
           "title": "fanSpeedsTitle",
-          "_format": "table",
           "propertyOrder": 1,
           "items": {
             "type": "object",
-            "title": "topicRowTitle",
+            "title": "fanSpeedRowTitle",
             "properties": {
               "control": {
                 "type": "string",
@@ -81,7 +80,12 @@
             },
             "required": [
               "control"
-            ]
+            ],
+            "options": {
+              "disable_collapse": true,
+              "disable_edit_json": true,
+              "disable_properties": true
+            }
           },
           "options": {
             "disable_array_reorder": true,
@@ -1591,7 +1595,8 @@
       "fanRelaysTitle": "Relays, 1–3 speeds",
       "fanRelaysDescription": "One relay per speed, slow to fast",
       "fanSpeedsTitle": "Speed relays (slow → fast) *",
-      "fanSpeedsDescription": "1 to 3 relays",
+      "fanSpeedsDescription": "Speed 1 is the slowest. The relay number does not matter, only the order",
+      "fanSpeedRowTitle": "Speed",
       "fanRelayModeTitle": "Relay mode",
       "fanRelayModeExclusive": "One relay per speed (motor taps)",
       "fanRelayModeCumulative": "Speed N = relays 1..N",
@@ -1731,7 +1736,8 @@
       "fanRelaysTitle": "Реле, 1–3 скорости",
       "fanRelaysDescription": "По реле на скорость, от медленной к быстрой",
       "fanSpeedsTitle": "Реле скоростей (от медленной к быстрой) *",
-      "fanSpeedsDescription": "От 1 до 3 реле",
+      "fanSpeedsDescription": "Скорость 1 — самая медленная. Номер реле значения не имеет — только порядок",
+      "fanSpeedRowTitle": "Скорость",
       "fanRelayModeTitle": "Режим реле",
       "fanRelayModeExclusive": "Одно реле на скорость (отводы обмотки)",
       "fanRelayModeCumulative": "Скорость N = реле 1..N",

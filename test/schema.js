@@ -331,6 +331,15 @@ console.log('\n=== 8а. Заголовки элементов в форме ==='
   check('заголовки помещений: название, а без него — как у кода', zh[0] === 'Гостиная' && zh[1] === zn[1].title, zh.join(' | ') + ' / ' + zn[1].title);
 }
 
+{
+  // «Как понять, где какая скорость?» — в таблице строки без подписи.
+  // Обычный список: json-editor пишет над элементом «<title> <номер>».
+  const sp = schema.definitions.fanRelays.properties.speeds;
+  check('реле скоростей — список, а не безымянная таблица', sp.format !== 'table' && sp._format !== 'table', sp.format || sp._format);
+  check('элемент подписан «Скорость» (→ «Скорость 1», «Скорость 2»)', schema.translations.ru[sp.items.title] === 'Скорость', sp.items.title);
+  check('формат конфига прежний: [{control}]', sp.items.properties.control !== undefined && sp.maxItems === 3);
+}
+
 console.log('\n=== 9. Команда установки ===');
 {
   // Одна строка без переменных: команда с U=... во второй строке,

@@ -155,6 +155,23 @@ defs.fanNone = {
   properties: { type: hiddenType('none') },
   required: ['type']
 };
+/**
+ * Реле скоростей: скорость — номер строки, а в таблице строки безымянные
+ * («как понять, где какая скорость?» — пользователь на стенде). Обычный
+ * список вместо таблицы: json-editor подписывает элемент заголовком
+ * «<title элемента> <номер>» — «Скорость 1», «Скорость 2», «Скорость 3»
+ * (так же было «Прибор 1» до headerTemplate). Формат конфига прежний.
+ */
+function speedArray() {
+  const a = topicArray('fanSpeeds', 'Speed relays (slow → fast) *', 'Реле скоростей (от медленной к быстрой) *',
+    'Speed 1 is the slowest. The relay number does not matter, only the order', 'Скорость 1 — самая медленная. Номер реле значения не имеет — только порядок', 1, 1);
+  delete a._format;
+  a.maxItems = 3;
+  a.items.title = tr('fanSpeedRowTitle', 'Speed', 'Скорость');
+  a.items.options = { disable_collapse: true, disable_edit_json: true, disable_properties: true };
+  return a;
+}
+
 defs.fanRelays = {
   type: 'object',
   title: tr('fanRelaysTitle', 'Relays, 1–3 speeds', 'Реле, 1–3 скорости'),
@@ -163,11 +180,7 @@ defs.fanRelays = {
   options: { disable_collapse: true, disable_edit_json: true },
   properties: {
     type: hiddenType('relays'),
-    speeds: Object.assign(
-      topicArray('fanSpeeds', 'Speed relays (slow → fast) *', 'Реле скоростей (от медленной к быстрой) *',
-        '1 to 3 relays', 'От 1 до 3 реле', 1, 1),
-      { maxItems: 3 }
-    ),
+    speeds: speedArray(),
     relayMode: {
       type: 'string',
       title: tr('fanRelayModeTitle', 'Relay mode', 'Режим реле'),
