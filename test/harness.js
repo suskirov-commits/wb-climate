@@ -120,6 +120,10 @@ function createEnv(opts) {
         env.store[topic] = c.value !== undefined ? c.value : c.type === 'pushbutton' ? false : 0;
       }
       env.meta[topic + '#error'] = '';
+      // как wb-rules: значение и описание контрола — retained в брокере
+      const base = '/devices/' + id + '/controls/' + n;
+      env.retained[base] = String(env.store[topic]);
+      env.retained[base + '/meta'] = JSON.stringify({ type: c.type });
     }
     spec._units = units;
     spec._order = order;
@@ -157,6 +161,43 @@ function createEnv(opts) {
     return env.storages[name];
   }
 
+  /*
+   * Брокер: retained-топики (полный путь /devices/...). publish с пустым
+   * retained удаляет топик, как в mosquitto. runShellCommand понимает
+   * только mosquitto_sub -t '<маска>' ... -F %t — отвечает списком
+   * сохранённых топиков следующим событием; остальное — код 127.
+   */
+  env.retained = opts.retained || {};
+  env.published = []; // [топик, значение, qos, retain]
+  env.shell = []; // команды runShellCommand
+  function publish(topic, payload, qos, retain) {
+    env.published.push([topic, payload, qos, retain]);
+    if (retain) {
+      if (payload === '') delete env.retained[topic];
+      else env.retained[topic] = payload;
+    }
+  }
+  function mqttMatch(mask, topic) {
+    const m = mask.split('/'),
+      t = topic.split('/');
+    for (let i = 0; i < m.length; i++) {
+      if (m[i] === '#') return true;
+      if (i >= t.length || (m[i] !== '+' && m[i] !== t[i])) return false;
+    }
+    return m.length === t.length;
+  }
+  function runShellCommand(cmd, o) {
+    env.shell.push(cmd);
+    o = o || {};
+    const masks = [];
+    cmd.replace(/-t '([^']*)'/g, (_, m) => masks.push(m));
+    const ok = /^mosquitto_sub /.test(cmd) && opts.mosquitto !== false;
+    // mosquitto_sub слушает до -W: видит и то, что опубликовано после запуска
+    const out = () =>
+      ok ? Object.keys(env.retained).filter((t) => masks.some((m) => mqttMatch(m, t))).map((t) => t + '\n').join('') : '';
+    if (o.exitCallback) addTimer(() => o.exitCallback(ok ? 27 : 127, o.captureOutput ? out() : undefined), 0, false);
+  }
+
   env.config = opts.config || null;
   const globalProto = opts.globalProto || {};
   const sandbox = {
@@ -165,6 +206,8 @@ function createEnv(opts) {
     defineVirtualDevice,
     defineRule,
     PersistentStorage,
+    publish,
+    runShellCommand,
     readConfig: () => JSON.parse(JSON.stringify(env.config)),
     setTimeout: (cb, ms) => addTimer(cb, ms, false),
     setInterval: (cb, ms) => addTimer(cb, ms, true),

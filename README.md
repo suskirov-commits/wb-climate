@@ -352,7 +352,7 @@ usr/share/wb-mqtt-confed/schemas/…json    форма настроек (ген�
 tools/make-schema.js                      генератор формы настроек
 dist/wb-climate.js                        однофайловая сборка (генерируется)
 test/harness.js                           эмулятор рантайма wb-rules
-test/zone.js, bundle.js, schema.js        автотесты (318 проверок)
+test/zone.js, bundle.js, schema.js        автотесты (328 проверок)
 test/sim.js                               стенд: модель помещения
 ```
 

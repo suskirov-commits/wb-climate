@@ -1098,4 +1098,63 @@ console.log('\n=== 15. Номера помещений и приборов пр�
   check('два помещения с одним id — ошибка с подсказкой', /id «room» повторяется — очистите поле id/.test(p2), p2);
 }
 
+/* ================================================================== */
+console.log('\n=== 16. Карточка без контролов удалённых приборов ===');
+{
+  // На стенде: прибор удалили из формы — «Конвектор 1: клапан» остался
+  // на карточке, потому что retained-топики в брокере никто не стёр
+  const env = makeEnv({
+    retained: {
+      '/devices/room/controls/conv1_valve': '0',
+      '/devices/room/controls/conv1_valve/meta': '{"type":"switch"}',
+      '/devices/room/controls/conv1_fan/meta/type': 'value',
+      '/devices/room/controls/conv1_state': 'Выключен',
+      '/devices/room2/controls/conv1_valve': '1',
+      '/devices/mr6c_1/controls/K1': '0'
+    }
+  });
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create({ id: 'room', sensors: { temperature: [TEMP], tau: 0 } });
+  env.advance(1000);
+  const left = Object.keys(env.retained).filter((t) => t.indexOf('/devices/room/controls/conv1_') === 0);
+  check('контролы удалённого прибора стёрты из брокера', left.length === 0, left.join(', '));
+  check('стёрты пустым retained', env.published.length > 0 && env.published.every((p) => p[1] === '' && p[3] === true), JSON.stringify(env.published));
+  check('контролы помещения на месте', env.retained['/devices/room/controls/temperature'] !== undefined && env.retained['/devices/room/controls/state/meta'] !== undefined);
+  check('чужие устройства не тронуты', env.retained['/devices/room2/controls/conv1_valve'] === '1' && env.retained['/devices/mr6c_1/controls/K1'] === '0');
+  check('маска подписки — только своё устройство', env.shell.length === 1 && env.shell[0].indexOf("-t '/devices/room/controls/#'") > 0, env.shell.join(' | '));
+  check('в лог — что убрано', env.logs.some((l) => /room: с карточки убраны .*conv1_valve.*conv1_fan.*conv1_state/.test(l)), env.logs.join(' | '));
+}
+{
+  // Прибор в конфиге — его контролы не трогаем
+  const env = makeEnv({ retained: { '/devices/room/controls/conv_valve': '1' } });
+  env.require('wbclim-zone').create(relaysZone());
+  env.advance(1000);
+  check('контролы прибора из конфига не стираются', env.published.length === 0, JSON.stringify(env.published));
+}
+{
+  // id с «+» стал бы маской и стёр бы чужие устройства
+  const env = makeEnv({ retained: { '/devices/a/controls/x': '1' } });
+  env.require('wbclim-zone').create({ id: 'ro+om', sensors: { temperature: [TEMP], tau: 0 } });
+  env.advance(1000);
+  check('id с «+» — брокер не опрашивается', env.shell.length === 0 && env.published.length === 0, env.shell.join(' | '));
+}
+{
+  // Зону пересоздали (сохранили сценарий), пока ждали брокер: ответ для
+  // прежнего экземпляра не должен стереть контролы нового
+  const env = makeEnv();
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create({ id: 'room', sensors: { temperature: [TEMP], tau: 0 } });
+  ZONE.create(relaysZone());
+  env.advance(1000);
+  check('ответ для прежнего экземпляра не стирает контролы нового', env.retained['/devices/room/controls/conv_valve'] !== undefined && env.published.length === 0, JSON.stringify(env.published));
+}
+{
+  // Нет mosquitto_sub — зона работает как раньше
+  const env = makeEnv({ mosquitto: false, retained: { '/devices/room/controls/conv1_valve': '0' } });
+  env.require('wbclim-zone').create(relaysZone());
+  setT(env, 18);
+  env.advance(15 * 1000);
+  check('без mosquitto_sub — без ошибок, клапан работает', env.get(VALVE) === true && env.published.length === 0, env.logs.join(' | '));
+}
+
 R.done('zone.js');

@@ -2014,6 +2014,50 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
           /* контрол не создан */
         }
       }
+      this._dropStaleControls(cells);
+    };
+
+    /** id, безопасный для подписки MQTT: «+» и «#» сделали бы его маской. */
+    var SAFE_ID = /^[0-9A-Za-z_-]+$/;
+
+    /**
+     * Убрать с карточки контролы, которых нет в конфигурации: прибор удалён
+     * или у него сменился id. wb-rules не стирает retained-топики контролов,
+     * которые больше не объявлены, и карточка показывала «Конвектор 1: клапан»
+     * удалённого прибора с последним значением (контроллер, 2026-10-02).
+     * Список топиков устройства даёт mosquitto_sub (-F %t — только топики),
+     * лишние стираются пустым retained-сообщением. Чужие устройства не
+     * затрагиваются: маска — только /devices/<id помещения>/controls/#.
+     */
+    Zone.prototype._dropStaleControls = function (cells) {
+      if (typeof runShellCommand !== 'function' || typeof publish !== 'function') return;
+      if (!SAFE_ID.test(this.id)) return;
+      var self = this;
+      var base = '/devices/' + this.id + '/controls/';
+      // По -W mosquitto_sub выходит с ошибкой всегда — код возврата не смотрим
+      runShellCommand("mosquitto_sub -t '" + base + "#' --retained-only -F %t -W 2", {
+        captureOutput: true,
+        exitCallback: function (code, out) {
+          // Зону пересоздали, пока ждали брокер, — у неё свой набор контролов
+          if (module.static.zones[self.id] !== self) return;
+          var lines = String(out || '').split('\n');
+          var gone = [];
+          for (var i = 0; i < lines.length; i++) {
+            var topic = lines[i].replace(/^\s+|\s+$/g, '');
+            if (topic.indexOf(base) !== 0) continue;
+            var name = topic.substring(base.length).split('/')[0];
+            if (!name || Object.prototype.hasOwnProperty.call(cells, name)) continue;
+            try {
+              publish(topic, '', 1, true);
+            } catch (e) {
+              log.error('wbclim: {}: не удалось стереть {}: {}', self.id, topic, e);
+              continue;
+            }
+            if (gone.indexOf(name) < 0) gone.push(name);
+          }
+          if (gone.length) log.info('wbclim: {}: с карточки убраны контролы удалённых приборов: {}', self.id, gone.join(', '));
+        }
+      });
     };
 
     Zone.prototype._c = function (name) {
