@@ -124,6 +124,7 @@ tr('errId', 'Latin letters, digits and underscore only', 'Только лати�
 tr('phMqttTopic', 'Device/Control', 'Устройство/Контрол');
 tr('topicRowTitle', 'Control', 'Контрол');
 tr('topicColTitle', 'Device/Control', 'Устройство/Контрол');
+tr('phAuto', 'auto', 'авто');
 
 /* ---------------- вентилятор ---------------- */
 const fanStart = () => num('fanStart', 'Fan starts at demand, %', 'Вентилятор включается с потребности, %',
@@ -247,21 +248,31 @@ defs.fanModbus = {
 };
 
 /* ---------------- общие поля исполнителей ---------------- */
-function devId(def, desc) {
+// id и название по умолчанию пустые: номер присваивает код («вслед за
+// существующим»). Редактор формы не умеет нумеровать элементы массива,
+// и с умолчанием conv1 каждый новый прибор получал бы тот же id.
+function devId(desc) {
   return {
     type: 'string',
     title: tr('devIdTitle', 'id', 'id'),
     description: desc,
-    pattern: '^[a-z0-9_]+$',
-    minLength: 1,
+    pattern: '^$|^[a-z0-9_]+$',
+    minLength: 0,
     maxLength: 20,
-    default: def,
+    default: '',
     propertyOrder: 1,
-    options: { patternmessage: 'errId', grid_columns: 4 }
+    options: { patternmessage: 'errId', inputAttributes: { placeholder: 'phAuto' }, grid_columns: 4 }
   };
 }
-function devName(def) {
-  return { type: 'string', title: tr('devNameTitle', 'Name', 'Название'), default: def, propertyOrder: 2, options: { grid_columns: 8 } };
+function devName() {
+  return {
+    type: 'string',
+    title: tr('devNameTitle', 'Name', 'Название'),
+    description: tr('devNameDescription', 'Empty — by type and number: «Convector 2», «Underfloor heating 1»', 'Пусто — по типу и номеру: «Конвектор 2», «Тёплый пол 1»'),
+    default: '',
+    propertyOrder: 2,
+    options: { inputAttributes: { placeholder: 'phAuto' }, grid_columns: 8 }
+  };
 }
 // Роль в нагреве — выпадающий список, а не «пустые» числа: редактор формы
 // сохранил бы в пустые числовые поля нули, а доля 0…0 — ошибка
@@ -332,8 +343,8 @@ defs.convector = {
   options: { disable_edit_json: true, disable_collapse: false },
   properties: {
     type: hiddenType('convector'),
-    id: devId('conv1', tr('convIdDescription', 'Prefix of the controls on the room card: conv1_valve, conv1_fan', 'Префикс контролов на карточке помещения: conv1_valve, conv1_fan')),
-    title: devName('Конвектор 1'),
+    id: devId(tr('convIdDescription', 'Prefix of the room card controls (conv1_valve). Empty — assigned automatically: next after the existing ones, conv1, conv2…', 'Префикс контролов на карточке помещения (conv1_valve). Пусто — присвоится сам: следующий после занятых, conv1, conv2…')),
+    title: devName(),
     valve: group('valve', 'Thermal actuator (valve)', 'Термоголовка (клапан)', null, null,
       valveGroup({ minOn: 120, minOff: 120, openTime: 180, cycle: 900 }, true), 10, ['topics']),
     fan: {
@@ -364,8 +375,8 @@ defs.floor = {
   options: { disable_edit_json: true, disable_collapse: false },
   properties: {
     type: hiddenType('floor'),
-    id: devId('floor1', tr('floorIdDescription', 'Prefix of the controls on the room card: floor1_valve, floor1_floor', 'Префикс контролов на карточке помещения: floor1_valve, floor1_floor')),
-    title: devName('Тёплый пол'),
+    id: devId(tr('floorIdDescription', 'Prefix of the room card controls (floor1_valve). Empty — assigned automatically: floor1, floor2…', 'Префикс контролов на карточке помещения (floor1_valve). Пусто — присвоится сам: floor1, floor2…')),
+    title: devName(),
     valve: group('floorValve', 'Loop thermal actuators', 'Термоголовки петель', null, null,
       valveGroup({ minOn: 180, minOff: 180, openTime: 180, cycle: 1200 }, false), 10, ['topics']),
     floorSensors: topicArray('floorSensors', 'Floor sensors', 'Датчики пола',
@@ -393,20 +404,21 @@ defs.zone = {
     id: {
       type: 'string',
       title: tr('zoneIdTitle', 'MQTT id', 'MQTT id'),
-      description: tr('zoneIdDescription', 'Virtual device id, e.g. climate_living', 'id виртуального устройства, например climate_living'),
-      pattern: '^[0-9a-zA-Z_]+$',
-      minLength: 1,
+      description: tr('zoneIdDescription', 'Virtual device id, e.g. climate_living. Empty — assigned automatically: climate_room1, climate_room2…', 'id виртуального устройства, например climate_living. Пусто — присвоится сам: climate_room1, climate_room2…'),
+      pattern: '^$|^[0-9a-zA-Z_]+$',
+      minLength: 0,
       maxLength: 40,
-      default: 'climate_room1',
+      default: '',
       propertyOrder: 1,
-      options: { patternmessage: 'errId', grid_columns: 4 }
+      options: { patternmessage: 'errId', inputAttributes: { placeholder: 'phAuto' }, grid_columns: 4 }
     },
     title: {
       type: 'string',
       title: tr('zoneNameTitle', 'Name', 'Название'),
-      default: 'Гостиная',
+      description: tr('zoneNameDescription', 'Empty — «Room 2» by number', 'Пусто — «Помещение 2» по номеру'),
+      default: '',
       propertyOrder: 2,
-      options: { grid_columns: 4 }
+      options: { inputAttributes: { placeholder: 'phAuto' }, grid_columns: 4 }
     },
     defaultSetpoint: num('zoneSetpoint', 'Default setpoint, °C', 'Уставка по умолчанию, °C',
       'Then set on the room card', 'Дальше задаётся на карточке помещения', 5, 35, 22, 3, 2),

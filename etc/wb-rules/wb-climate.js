@@ -28,7 +28,8 @@ var CONF_PATH = '/etc/wb-climate.conf';
     return;
   }
 
-  var zones = (conf && conf.zones) || [];
+  // Пустые id и названия помещений и приборов — присвоить по порядку
+  var zones = ZONE.normalize((conf && conf.zones) || []);
   // Зоны проверяются разом до запуска любой из них: одно реле в двух
   // зонах видно только на полном списке.
   var problems = ZONE.checkZones(zones);

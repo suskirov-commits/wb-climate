@@ -104,7 +104,8 @@ for (const name of MODULES) {
 out += `  /* ---------------- точка входа ---------------- */
 
   var ZONE = require('wbclim-zone');
-  var zones = (CONFIG && CONFIG.zones) || [];
+  // Пустые id и названия помещений и приборов — присвоить по порядку
+  var zones = ZONE.normalize((CONFIG && CONFIG.zones) || []);
 
   // Зоны проверяются разом до запуска любой из них: одно реле в двух
   // зонах видно только на полном списке.

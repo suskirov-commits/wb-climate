@@ -598,22 +598,29 @@
           "type": "string",
           "title": "devIdTitle",
           "description": "convIdDescription",
-          "pattern": "^[a-z0-9_]+$",
-          "minLength": 1,
+          "pattern": "^$|^[a-z0-9_]+$",
+          "minLength": 0,
           "maxLength": 20,
-          "default": "conv1",
+          "default": "",
           "propertyOrder": 1,
           "options": {
             "patternmessage": "errId",
+            "inputAttributes": {
+              "placeholder": "phAuto"
+            },
             "grid_columns": 4
           }
         },
         "title": {
           "type": "string",
           "title": "devNameTitle",
-          "default": "Конвектор 1",
+          "description": "devNameDescription",
+          "default": "",
           "propertyOrder": 2,
           "options": {
+            "inputAttributes": {
+              "placeholder": "phAuto"
+            },
             "grid_columns": 8
           }
         },
@@ -877,22 +884,29 @@
           "type": "string",
           "title": "devIdTitle",
           "description": "floorIdDescription",
-          "pattern": "^[a-z0-9_]+$",
-          "minLength": 1,
+          "pattern": "^$|^[a-z0-9_]+$",
+          "minLength": 0,
           "maxLength": 20,
-          "default": "floor1",
+          "default": "",
           "propertyOrder": 1,
           "options": {
             "patternmessage": "errId",
+            "inputAttributes": {
+              "placeholder": "phAuto"
+            },
             "grid_columns": 4
           }
         },
         "title": {
           "type": "string",
           "title": "devNameTitle",
-          "default": "Тёплый пол",
+          "description": "devNameDescription",
+          "default": "",
           "propertyOrder": 2,
           "options": {
+            "inputAttributes": {
+              "placeholder": "phAuto"
+            },
             "grid_columns": 8
           }
         },
@@ -1153,22 +1167,29 @@
           "type": "string",
           "title": "zoneIdTitle",
           "description": "zoneIdDescription",
-          "pattern": "^[0-9a-zA-Z_]+$",
-          "minLength": 1,
+          "pattern": "^$|^[0-9a-zA-Z_]+$",
+          "minLength": 0,
           "maxLength": 40,
-          "default": "climate_room1",
+          "default": "",
           "propertyOrder": 1,
           "options": {
             "patternmessage": "errId",
+            "inputAttributes": {
+              "placeholder": "phAuto"
+            },
             "grid_columns": 4
           }
         },
         "title": {
           "type": "string",
           "title": "zoneNameTitle",
-          "default": "Гостиная",
+          "description": "zoneNameDescription",
+          "default": "",
           "propertyOrder": 2,
           "options": {
+            "inputAttributes": {
+              "placeholder": "phAuto"
+            },
             "grid_columns": 4
           }
         },
@@ -1561,6 +1582,7 @@
       "phMqttTopic": "Device/Control",
       "topicRowTitle": "Control",
       "topicColTitle": "Device/Control",
+      "phAuto": "auto",
       "fanNoneTitle": "No fan (passive convector)",
       "fanNoneDescription": "Controlled by the thermal actuator only, like underfloor heating",
       "fanRelaysTitle": "Relays, 1–3 speeds",
@@ -1605,9 +1627,10 @@
       "fanMinChangeTitle": "Smooth: min change to write, %",
       "fanMinChangeDescription": "Controller boards may store every write in non-volatile memory",
       "convTitle": "Convector",
-      "convIdDescription": "Prefix of the controls on the room card: conv1_valve, conv1_fan",
+      "convIdDescription": "Prefix of the room card controls (conv1_valve). Empty — assigned automatically: next after the existing ones, conv1, conv2…",
       "devIdTitle": "id",
       "devNameTitle": "Name",
+      "devNameDescription": "Empty — by type and number: «Convector 2», «Underfloor heating 1»",
       "valveTopicsTitle": "Relays *",
       "valveTopicsDescription": "All relays of the group switch together",
       "valveNoTitle": "Normally open (NO)",
@@ -1636,7 +1659,7 @@
       "demandFromTitle": "Demand from, %",
       "demandToTitle": "Demand to, %",
       "floorTitle": "Underfloor heating",
-      "floorIdDescription": "Prefix of the controls on the room card: floor1_valve, floor1_floor",
+      "floorIdDescription": "Prefix of the room card controls (floor1_valve). Empty — assigned automatically: floor1, floor2…",
       "floorValveTitle": "Loop thermal actuators",
       "floorSensorsTitle": "Floor sensors",
       "floorSensorsDescription": "In the screed, one or more; the average of healthy ones is used. Without them the loops follow the room demand by PWM",
@@ -1647,8 +1670,9 @@
       "floorHystTitle": "Floor hysteresis, K",
       "zoneTitle": "Room",
       "zoneIdTitle": "MQTT id",
-      "zoneIdDescription": "Virtual device id, e.g. climate_living",
+      "zoneIdDescription": "Virtual device id, e.g. climate_living. Empty — assigned automatically: climate_room1, climate_room2…",
       "zoneNameTitle": "Name",
+      "zoneNameDescription": "Empty — «Room 2» by number",
       "zoneSetpointTitle": "Default setpoint, °C",
       "zoneSetpointDescription": "Then set on the room card",
       "zoneEnabledTitle": "Enabled by default",
@@ -1696,6 +1720,7 @@
       "phMqttTopic": "Устройство/Контрол",
       "topicRowTitle": "Контрол",
       "topicColTitle": "Устройство/Контрол",
+      "phAuto": "авто",
       "fanNoneTitle": "Нет вентилятора (пассивный конвектор)",
       "fanNoneDescription": "Только термоголовка, как тёплый пол",
       "fanRelaysTitle": "Реле, 1–3 скорости",
@@ -1740,9 +1765,10 @@
       "fanMinChangeTitle": "Плавно: не писать изменения меньше, %",
       "fanMinChangeDescription": "Плата конвектора может сохранять каждую запись в энергонезависимую память",
       "convTitle": "Конвектор",
-      "convIdDescription": "Префикс контролов на карточке помещения: conv1_valve, conv1_fan",
+      "convIdDescription": "Префикс контролов на карточке помещения (conv1_valve). Пусто — присвоится сам: следующий после занятых, conv1, conv2…",
       "devIdTitle": "id",
       "devNameTitle": "Название",
+      "devNameDescription": "Пусто — по типу и номеру: «Конвектор 2», «Тёплый пол 1»",
       "valveTopicsTitle": "Реле *",
       "valveTopicsDescription": "Все реле группы переключаются вместе",
       "valveNoTitle": "Нормально открытые (NO)",
@@ -1771,7 +1797,7 @@
       "demandFromTitle": "Потребность от, %",
       "demandToTitle": "Потребность до, %",
       "floorTitle": "Тёплый пол",
-      "floorIdDescription": "Префикс контролов на карточке помещения: floor1_valve, floor1_floor",
+      "floorIdDescription": "Префикс контролов на карточке помещения (floor1_valve). Пусто — присвоится сам: floor1, floor2…",
       "floorValveTitle": "Термоголовки петель",
       "floorSensorsTitle": "Датчики пола",
       "floorSensorsDescription": "В стяжке, один или несколько; берётся среднее по исправным. Без них петли работают ШИМ по потребности помещения",
@@ -1782,8 +1808,9 @@
       "floorHystTitle": "Гистерезис пола, К",
       "zoneTitle": "Помещение",
       "zoneIdTitle": "MQTT id",
-      "zoneIdDescription": "id виртуального устройства, например climate_living",
+      "zoneIdDescription": "id виртуального устройства, например climate_living. Пусто — присвоится сам: climate_room1, climate_room2…",
       "zoneNameTitle": "Название",
+      "zoneNameDescription": "Пусто — «Помещение 2» по номеру",
       "zoneSetpointTitle": "Уставка по умолчанию, °C",
       "zoneSetpointDescription": "Дальше задаётся на карточке помещения",
       "zoneEnabledTitle": "Включено по умолчанию",

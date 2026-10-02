@@ -1614,6 +1614,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
         missingOf: CONV.missingOf,
         outputsOf: CONV.outputsOf,
         name: 'Конвектор',
+        prefix: 'conv',
         speed: 'fast'
       },
       floor: {
@@ -1623,6 +1624,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
         checkOf: FLOOR.checkOf,
         outputsOf: FLOOR.outputsOf,
         name: 'Тёплый пол',
+        prefix: 'floor',
         speed: 'slow'
       }
     };
@@ -1644,6 +1646,111 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
     function deviceTitle(d, i) {
       var t = DEVICE_TYPES[(d && d.type) || 'convector'];
       return d && d.title ? d.title : (t ? t.name : 'Устройство') + ' ' + (i + 1);
+    }
+
+    /* ================================================================== */
+    /*  Номера помещений и приборов                                        */
+    /* ================================================================== */
+
+    function shallowCopy(o) {
+      var r = {};
+      for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) r[k] = o[k];
+      return r;
+    }
+
+    /**
+     * Пустые id и названия присваиваются сами: следующий номер после уже
+     * занятых с тем же префиксом — «вслед за существующим» (conv1 занят —
+     * новый станет conv2). Название — по типу и номеру: «Конвектор 2».
+     *
+     * Зачем в коде, а не в форме: редактор формы (json-editor) не умеет
+     * нумеровать элементы массива — «+ Прибор» подставлял второму прибору те
+     * же conv1 / «Конвектор 1», что и первому, и помещение не запускалось.
+     * Дубли, введённые вручную, по-прежнему ошибка: молча переименовывать
+     * то, что человек написал сам, нельзя.
+     *
+     * @param {Array} list помещения или приборы одного помещения (меняется)
+     * @param {Function} prefixOf элемент -> префикс id
+     * @param {Function} nameOf элемент -> название типа
+     */
+    function fillIds(list, prefixOf, nameOf) {
+      var used = {};
+      var maxN = {};
+      var i, it, m;
+      for (i = 0; i < list.length; i++) {
+        it = list[i];
+        if (!it || !it.id) continue;
+        used[it.id] = true;
+        m = /^(.*?)(\d+)$/.exec(it.id);
+        if (m) maxN[m[1]] = Math.max(maxN[m[1]] || 0, parseInt(m[2], 10));
+      }
+      for (i = 0; i < list.length; i++) {
+        it = list[i];
+        if (!it || it.id) continue;
+        var p = prefixOf(it);
+        var n = (maxN[p] || 0) + 1;
+        while (used[p + n]) n++;
+        it.id = p + n;
+        used[it.id] = true;
+        maxN[p] = n;
+      }
+      var count = {};
+      for (i = 0; i < list.length; i++) {
+        it = list[i];
+        if (!it) continue;
+        var name = nameOf(it);
+        count[name] = (count[name] || 0) + 1;
+        if (!it.title) {
+          m = /(\d+)$/.exec(it.id);
+          it.title = name + ' ' + (m ? parseInt(m[1], 10) : count[name]);
+        }
+      }
+    }
+
+    /**
+     * Конфигурация с присвоенными id и названиями. Исходный объект не
+     * меняется. Повторный вызов ничего не меняет.
+     * @param {Array} zones секция zones
+     * @returns {Array}
+     */
+    function normalize(zones) {
+      var res = [];
+      for (var i = 0; i < zones.length; i++) {
+        var z = zones[i];
+        if (!z || typeof z !== 'object') {
+          res.push(z);
+          continue;
+        }
+        var zc = shallowCopy(z);
+        var devs = [];
+        var src = z.devices || [];
+        for (var j = 0; j < src.length; j++) {
+          devs.push(src[j] && typeof src[j] === 'object' ? shallowCopy(src[j]) : src[j]);
+        }
+        fillIds(
+          devs,
+          function (d) {
+            var t = DEVICE_TYPES[d.type || 'convector'];
+            return t ? t.prefix : 'dev';
+          },
+          function (d) {
+            var t = DEVICE_TYPES[d.type || 'convector'];
+            return t ? t.name : 'Устройство';
+          }
+        );
+        zc.devices = devs;
+        res.push(zc);
+      }
+      fillIds(
+        res,
+        function () {
+          return 'climate_room';
+        },
+        function () {
+          return 'Помещение';
+        }
+      );
+      return res;
     }
 
     /**
@@ -2279,6 +2386,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
      * @returns {Object} id зоны -> массив описаний ошибок
      */
     function checkZones(zones) {
+      zones = normalize(zones);
       var res = {};
       var all = [];
       var seenZones = {};
@@ -2286,7 +2394,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
         var z = zones[i];
         if (!z || !z.id) continue;
         var p = (res[z.id] = res[z.id] || []);
-        if (seenZones[z.id]) p.push('id «' + z.id + '» повторяется');
+        if (seenZones[z.id]) p.push('id «' + z.id + '» повторяется — очистите поле id, номер присвоится сам');
         seenZones[z.id] = true;
 
         if (!U.topicList(z.sensors && z.sensors.temperature).length) p.push('не задан датчик температуры');
@@ -2303,7 +2411,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
           }
           var did = deviceId(d, j);
           if (!ID_RE.test(did)) p.push(title + ': id «' + did + '» — только латиница в нижнем регистре, цифры и _');
-          if (ids[did]) p.push(title + ': id «' + did + '» повторяется');
+          if (ids[did]) p.push(title + ': id «' + did + '» повторяется — очистите поле id, номер присвоится сам');
           ids[did] = true;
 
           var miss = t.missingOf(d);
@@ -2355,6 +2463,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
      * @param {Array} [problems] результат checkZones() по всем зонам
      */
     exports.create = function (cfg, problems) {
+      cfg = normalize([cfg])[0];
       var reg = module.static.zones;
       var prev = reg[cfg.id];
       if (prev) {
@@ -2399,6 +2508,7 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
 
     exports.Zone = Zone;
     exports.checkZones = checkZones;
+    exports.normalize = normalize;
     exports.MODE_AUTO = MODE_AUTO;
     exports.MODE_MANUAL = MODE_MANUAL;
 
@@ -2407,7 +2517,8 @@ if (!global.__proto__.__wbclimShared) global.__proto__.__wbclimShared = {};
   /* ---------------- точка входа ---------------- */
 
   var ZONE = require('wbclim-zone');
-  var zones = (CONFIG && CONFIG.zones) || [];
+  // Пустые id и названия помещений и приборов — присвоить по порядку
+  var zones = ZONE.normalize((CONFIG && CONFIG.zones) || []);
 
   // Зоны проверяются разом до запуска любой из них: одно реле в двух
   // зонах видно только на полном списке.

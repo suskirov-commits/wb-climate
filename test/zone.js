@@ -1023,4 +1023,77 @@ function mixedZone(conv) {
   check('замерзание: открыты и пол, и конвектор', env.get(FV) === true && env.get(VALVE) === true);
 }
 
+/* ================================================================== */
+console.log('\n=== 15. Номера помещений и приборов присваиваются сами ===');
+{
+  const env = makeEnv();
+  const ZONE = env.require('wbclim-zone');
+  const src = [
+    {
+      id: 'climate_room1',
+      title: 'Гостиная',
+      devices: [
+        { type: 'convector', id: 'conv1', title: 'Конвектор 1' },
+        { type: 'convector', id: '', title: '' }, // «+ Прибор» в форме
+        { type: 'floor' },
+        { type: 'convector' }
+      ]
+    },
+    { id: '', title: '', devices: [] }, // «+ Помещение» в форме
+    { devices: [{ id: 'conv5' }, {}] }
+  ];
+  const before = JSON.stringify(src);
+  const zs = ZONE.normalize(src);
+  const ids = zs[0].devices.map((d) => d.id).join(',');
+  check('приборы: следующий номер после занятого — conv2, floor1, conv3', ids === 'conv1,conv2,floor1,conv3', ids);
+  const titles = zs[0].devices.map((d) => d.title).join(', ');
+  check('названия по типу и номеру', titles === 'Конвектор 1, Конвектор 2, Тёплый пол 1, Конвектор 3', titles);
+  check('помещение без id — climate_room2, «Помещение 2»', zs[1].id === 'climate_room2' && zs[1].title === 'Помещение 2', zs[1].id + ' ' + zs[1].title);
+  check('третье помещение — climate_room3', zs[2].id === 'climate_room3', zs[2].id);
+  check('вслед за существующим: после conv5 — conv6', zs[2].devices.map((d) => d.id).join(',') === 'conv5,conv6', zs[2].devices.map((d) => d.id).join(','));
+  check('исходный конфиг не меняется', JSON.stringify(src) === before);
+  check('повторная нормализация ничего не меняет', JSON.stringify(ZONE.normalize(zs)) === JSON.stringify(zs));
+}
+{
+  // Как в форме: эталонный прибор и «+ Прибор» — оба с пустыми id
+  const env = makeEnv();
+  env.config = {
+    zones: [
+      {
+        id: 'room',
+        title: 'Комната',
+        sensors: { temperature: [{ control: TEMP }], tau: 0 },
+        devices: [
+          { type: 'convector', id: '', title: '', valve: { topics: [{ control: VALVE }] }, fan: { type: 'none' } },
+          { type: 'convector', id: '', title: '', valve: { topics: [{ control: 'mr6c_2/K1' }] }, fan: { type: 'none' } }
+        ]
+      }
+    ]
+  };
+  env.runScript(require('path').join(__dirname, '..', 'etc', 'wb-rules', 'wb-climate.js'));
+  env.advance(15 * 1000);
+  const cells = env.devices.room.cells;
+  check('на карточке conv1_* и conv2_*', 'conv1_valve' in cells && 'conv2_valve' in cells, Object.keys(cells).filter((c) => /_valve$/.test(c)).join(','));
+  check('подписи «Конвектор 1» и «Конвектор 2»', /^Конвектор 2:/.test(cells.conv2_valve.title.ru), cells.conv2_valve.title.ru);
+  check('помещение запущено, а не «Ошибка настройки»', env.get('room/state') !== 'Ошибка настройки', env.get('room/alarm_text'));
+  check('оба клапана работают', env.get(VALVE) === true && env.get('mr6c_2/K1') === true);
+}
+{
+  // Прямой вызов create с пустыми id — нумерует сам
+  const env = makeEnv();
+  const ZONE = env.require('wbclim-zone');
+  ZONE.create({ id: 'room', sensors: { temperature: [TEMP], tau: 0 }, devices: [{ type: 'convector', valve: { topics: [VALVE] } }] });
+  check('create без id прибора — conv1 на карточке', 'conv1_valve' in env.devices.room.cells, Object.keys(env.devices.room.cells).join(','));
+}
+{
+  const env = makeEnv();
+  const ZONE = env.require('wbclim-zone');
+  const z = relaysZone();
+  z.devices.push({ type: 'convector', id: 'conv', valve: { topics: ['mr6c_2/K1'] } });
+  const p = ZONE.checkZones([z]).room.join(' | ');
+  check('дубль, введённый вручную, — ошибка с подсказкой', /id «conv» повторяется — очистите поле id/.test(p), p);
+  const p2 = ZONE.checkZones([relaysZone(), relaysZone()]).room.join(' | ');
+  check('два помещения с одним id — ошибка с подсказкой', /id «room» повторяется — очистите поле id/.test(p2), p2);
+}
+
 R.done('zone.js');

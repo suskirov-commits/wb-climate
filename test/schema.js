@@ -69,6 +69,13 @@ check('пол с ролью «свои границы»', validate(withDev(Objec
 check('неизвестная роль отвергается', !validate(withDev(Object.assign({}, floorDev, { role: 'turbo' }))));
 check('неизвестный тип прибора отвергается', !validate(withDev(Object.assign({}, floorDev, { type: 'radiator' }))));
 check('четыре скорости реле отвергаются', !validate(zoneOf({ type: 'relays', speeds: [1, 2, 3, 4].map((i) => ({ control: 'a/K' + i })) })));
+{
+  const blank = JSON.parse(JSON.stringify(conf));
+  blank.zones[0].id = '';
+  blank.zones[0].title = '';
+  blank.zones[0].devices[0].id = '';
+  check('пустые id и названия допустимы (присвоятся сами)', validate(blank), JSON.stringify(validate.errors && validate.errors[0]));
+}
 const badId = JSON.parse(JSON.stringify(conf));
 badId.zones[0].devices[0].id = 'Conv-1';
 check('id конвектора с недопустимыми символами отвергается', !validate(badId));
@@ -205,6 +212,36 @@ check('в эталоне нет адресов модулей', filled.length ==
   check('эталон ничего не переключает', ext.length === 0, JSON.stringify(ext));
   check('карточка: «Ошибка настройки»', e.get(zc.id + '/state') === 'Ошибка настройки', e.get(zc.id + '/state'));
   check('в аварии — что заполнить', /датчик температуры/.test(e.get(zc.id + '/alarm_text')), e.get(zc.id + '/alarm_text'));
+}
+
+console.log('\n=== 6а. В эталоне есть все поля формы ===');
+{
+  // Редактор формы прячет необязательные поля, которых нет в загруженном
+  // конфиге: у прибора из эталона без role не было «Участия в нагреве».
+  const missing = [];
+  const pickOneOf = (node, data) => {
+    for (const r of node.oneOf) {
+      const d = schema.definitions[r.$ref.split('/').pop()];
+      if (d.properties.type && d.properties.type.enum[0] === data.type) return d;
+    }
+    return null;
+  };
+  (function walk(node, data, p) {
+    if (node.$ref) node = schema.definitions[node.$ref.split('/').pop()];
+    if (node.oneOf) node = pickOneOf(node, data) || node;
+    if (node.type === 'array' && node.items && Array.isArray(data)) {
+      data.forEach((x, i) => {
+        if (x && typeof x === 'object' && !Array.isArray(x)) walk(node.items, x, p + '/' + i);
+      });
+      return;
+    }
+    if (!node.properties || !data || typeof data !== 'object') return;
+    for (const k of Object.keys(node.properties)) {
+      if (!(k in data)) missing.push(p + '/' + k);
+      else walk(node.properties[k], data[k], p + '/' + k);
+    }
+  })({ properties: schema.properties }, conf, '');
+  check('ни одно поле не пропущено', missing.length === 0, missing.join(', '));
 }
 
 console.log('\n=== 7. Что вернёт форма: необязательные секции пропущены ===');
