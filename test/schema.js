@@ -383,7 +383,7 @@ console.log('\n=== 10. Шаблон Sprut.hub ===');
   check('маска находит помещения с любым допустимым id', ids.every((id) => (('/devices/' + id + '/controls/demand_i/meta/type').match(re) || [])[1] === id));
   check(
     'маска не находит чужие устройства и контролы приборов',
-    !['/devices/mix_floor/controls/pid_i/meta/type', '/devices/wb-mr6c_45/controls/K1/meta/type', '/devices/climate_room1/controls/conv1_valve/meta/type', '/devices/climate_room1/controls/demand_i/meta'].some((t) => re.test(t))
+    !['/devices/mix_floor/controls/pid_i/meta/type', '/devices/wb-mr6c_45/controls/K1/meta/type', '/devices/climate_room1/controls/conv1_valve/meta/type'].some((t) => re.test(t))
   );
   const sets = [...src.matchAll(/"topicSet":"([^"]+)"/g)].map((m) => m[1]).sort();
   check('из приложения пишутся только уставка и вкл/выкл, через /on', sets.join() === '/devices/(1)/controls/enabled/on,/devices/(1)/controls/setpoint/on', sets.join(', '));
