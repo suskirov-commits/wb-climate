@@ -3,7 +3,7 @@
   "manufacturer": "wbclim",
   "model": "Помещение",
   "modelIds": [
-    "/devices/([0-9a-zA-Z_-]+)/controls/demand_i/meta"
+    "/devices/([0-9a-zA-Z_-]+)/controls/demand_i/meta/type"
   ],
   "services": [
     {
