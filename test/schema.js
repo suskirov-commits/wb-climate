@@ -365,4 +365,43 @@ console.log('\n=== 9. Команда установки ===');
   check('страница релиза: та же команда для своей версии', ok(bn) && an === bn, b);
 }
 
+console.log('\n=== 10. Шаблон Sprut.hub ===');
+{
+  // Шаблон ссылается на контролы карточки помещения по имени. Переименуют
+  // контрол в коде — Sprut.hub молча перестанет видеть уставку (wbmix).
+  const tpl = JSON.parse(fs.readFileSync(path.join(ROOT, 'spruthub/spruthub-climate-room.json'), 'utf8'));
+  const src = JSON.stringify(tpl);
+  const env = createEnv();
+  env.control('t/T', 21);
+  env.require('wbclim-zone').create({ id: 'climate_room1', sensors: { temperature: ['t/T'] } });
+  const cells = Object.keys(env.devices.climate_room1.cells);
+  const used = [...new Set([...src.matchAll(/\/controls\/([a-z_]+)/g)].map((m) => m[1]))];
+  const missing = used.filter((c) => cells.indexOf(c) < 0);
+  check('шаблон ссылается только на контролы помещения: ' + used.join(', '), missing.length === 0, missing.join(', '));
+  const re = new RegExp('^' + tpl.modelIds[0] + '$');
+  const ids = ['climate_room1', 'room', 'Gost-2'];
+  check('маска находит помещения с любым допустимым id', ids.every((id) => (('/devices/' + id + '/controls/demand_i/meta').match(re) || [])[1] === id));
+  check(
+    'маска не находит чужие устройства и контролы приборов',
+    !['/devices/mix_floor/controls/pid_i/meta', '/devices/wb-mr6c_45/controls/K1/meta', '/devices/climate_room1/controls/conv1_valve/meta'].some((t) => re.test(t))
+  );
+  const sets = [...src.matchAll(/"topicSet":"([^"]+)"/g)].map((m) => m[1]).sort();
+  check('из приложения пишутся только уставка и вкл/выкл, через /on', sets.join() === '/devices/(1)/controls/enabled/on,/devices/(1)/controls/setpoint/on', sets.join(', '));
+  // Авария — отдельный датчик контакта: на него в Sprut.hub и в Apple
+  // «Дом» включаются push-уведомления, статусные поля их не дают
+  const alarm = tpl.services.find((s) => s.type === 'ContactSensor');
+  check('авария — датчик контакта по контролу alarm', !!alarm && JSON.stringify(alarm).includes('"topicGet":"/devices/(1)/controls/alarm"'));
+  const tt = tpl.services.find((s) => s.type === 'Thermostat').characteristics.find((c) => c.type === 'TargetTemperature');
+  const ctl = schema.definitions.zone.properties.control.properties;
+  check(
+    'уставка в приложении — как бегунок на карточке: 16–40, шаг 1',
+    tt.minValue === ctl.setpointMin.default && tt.maxValue === ctl.setpointMax.default && tt.minStep === 1 && env.devices.climate_room1.cells.setpoint.type === 'range',
+    tt.minValue + '–' + tt.maxValue + ' / ' + tt.minStep
+  );
+  // «Нагрев» в приложении — когда помещению нужно тепло (потребность > 0)
+  const cur = tpl.services.find((s) => s.type === 'Thermostat').characteristics.find((c) => c.type === 'CurrentHeatingCoolingState');
+  const inFunc = new Function('value', 'return ' + cur.link[0].inFunc);
+  check('текущий режим: потребность 0 — OFF, больше 0 — HEAT', inFunc('0') === 0 && inFunc('0.5') === 1 && inFunc('100') === 1);
+}
+
 R.done('schema.js');

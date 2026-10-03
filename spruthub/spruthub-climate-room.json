@@ -1,0 +1,119 @@
+{
+  "name": "Помещение",
+  "manufacturer": "wbclim",
+  "model": "Помещение",
+  "modelIds": [
+    "/devices/([0-9a-zA-Z_-]+)/controls/demand_i/meta"
+  ],
+  "services": [
+    {
+      "name": "Температура",
+      "type": "Thermostat",
+      "characteristics": [
+        {
+          "type": "CurrentTemperature",
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/temperature"
+            }
+          ]
+        },
+        {
+          "type": "TargetTemperature",
+          "link": [
+            {
+              "type": "Double",
+              "topicGet": "/devices/(1)/controls/setpoint",
+              "topicSet": "/devices/(1)/controls/setpoint/on"
+            }
+          ],
+          "minValue": 16,
+          "maxValue": 40,
+          "minStep": 1
+        },
+        {
+          "type": "CurrentHeatingCoolingState",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/demand",
+              "inFunc": "parseFloat(value) > 0 ? 1 : 0"
+            }
+          ],
+          "validValues": "OFF,HEAT"
+        },
+        {
+          "type": "TargetHeatingCoolingState",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/enabled",
+              "topicSet": "/devices/(1)/controls/enabled/on",
+              "map": {
+                "OFF": "0",
+                "HEAT": "1"
+              }
+            }
+          ],
+          "validValues": "OFF,HEAT"
+        },
+        {
+          "type": "TemperatureDisplayUnits",
+          "validValues": "CELSIUS",
+          "option": true
+        }
+      ]
+    },
+    {
+      "name": "Авария",
+      "type": "ContactSensor",
+      "characteristics": [
+        {
+          "type": "ContactSensorState",
+          "link": [
+            {
+              "type": "Integer",
+              "topicGet": "/devices/(1)/controls/alarm"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "name": "Состояние",
+      "type": "String",
+      "link": [
+        {
+          "type": "String",
+          "topicGet": "/devices/(1)/controls/state"
+        }
+      ],
+      "inputType": "STATUS"
+    },
+    {
+      "name": "Потребность в тепле, %",
+      "type": "Double",
+      "link": [
+        {
+          "type": "Double",
+          "topicGet": "/devices/(1)/controls/demand"
+        }
+      ],
+      "inputType": "STATUS"
+    },
+    {
+      "name": "Описание аварии",
+      "type": "String",
+      "link": [
+        {
+          "type": "String",
+          "topicGet": "/devices/(1)/controls/alarm_text"
+        }
+      ],
+      "inputType": "STATUS"
+    }
+  ]
+}

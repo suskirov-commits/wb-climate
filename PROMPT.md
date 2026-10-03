@@ -407,6 +407,7 @@ etc/wb-rules-modules/wbclim-floor.js      тёплый пол: каскад по
 etc/wb-rules-modules/wbclim-zone.js       помещение: регулятор, роли, защиты, устройство, checkZones, prune
 etc/wb-rules/wb-climate.js                точка входа
 etc/wb-climate.conf / .conf.example       эталон (пустые топики) / пример с комментариями
+spruthub/spruthub-climate-room.json       шаблон Sprut.hub (помещение — термостат, авария)
 usr/share/wb-mqtt-confed/schemas/wb-climate.schema.json   форма (139 ключей переводов, генерируется)
 tools/make-schema.js                      генератор формы
 dist/wb-climate.js                        однофайловая сборка (генерируется)
